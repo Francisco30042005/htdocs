@@ -31,7 +31,7 @@ try {
 
                         <img 
                             class="card-img-top" 
-                            src="imagenes/<?= htmlspecialchars($producto['referencia']) ?>.jpg" 
+                            src="imag   enes/<?= htmlspecialchars($producto['referencia']) ?>.jpg" 
                             alt="<?= htmlspecialchars($producto['nombre']) ?>" 
                         />
                         
