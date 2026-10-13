@@ -1,7 +1,17 @@
         <?php
         try {
                 // 2. Consultar todos los productos de la tabla
-                $productos = $conexion->query("SELECT id, referencia, nombre, precio, precio_rebajado, descripcion, valoracion FROM productos");
+                    // Columnas que necesitamos para mostrar los productos
+                $sql = "SELECT id, referencia, nombre, precio,
+                            precio_rebajado, descripcion, valoracion
+                        FROM productos";
+
+                // Si estamos en la sección de rebajados, filtramos
+                if ($pagina === 'rebajados') {
+                    $sql .= " WHERE precio_rebajado IS NOT NULL";
+                }
+
+                $productos = $conexion->query($sql);
             } catch (PDOException $e) {
                 die("Error al consultar productos: " . $e->getMessage());
             }
@@ -21,8 +31,16 @@
                         <div class="card h-100">
                             <!-- Sale badge-->
                             <div class="badge bg-dark text-white position-absolute" style="top: 0.5rem; right: 0.5rem">Sale</div>
+                            <?php 
+                                // Comprobamos si la imagen existe en el servidor
+                                $ruta_imagen = 'images/' . $producto['referencia'] . '.jpg';
+                                if (!file_exists($ruta_imagen)) {
+                                    // Si no existe, ponemos la imagen de relleno por defecto
+                                    $ruta_imagen = 'https://dummyimage.com/450x300/dee2e6/6c757d.jpg'; 
+                                }
+                            ?>
                             <!-- Product image-->
-                            <img class="card-img-top" src="https://dummyimage.com/450x300/dee2e6/6c757d.jpg" alt="..." />
+                            <img class="card-img-top" src="<?= $ruta_imagen ?>" alt="<?= htmlspecialchars($producto['nombre']) ?>" />
                             <!-- Product details-->
                             <div class="card-body p-4">
                                 <div class="text-center">
