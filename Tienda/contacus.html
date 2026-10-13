@@ -1,0 +1,44 @@
+        <section class="py-5">
+            <div class="container px-4 px-lg-5 my-5">
+                <div class="row gx-4 gx-lg-5 align-items-center">
+                    <div class="col-md-6">
+                        <div class="small mb-1">START SHOP</div>
+                        <h1 class="display-5 fw-bolder">Contacta con nosotros</h1>
+                        <form class='justify-content-center' action="generar-mail.php" method="post">
+                            <div>
+                                <!-- input NOMBRE -->
+                                <input class="form-control" type="text" name="nombre" maxlength="40" placeholder="Nombre *" required=""><br>
+                                <!-- input APELLIDOS -->
+                                <input class="form-control" type="text" name="apellidos" maxlength="80" placeholder="Apellidos *" required="">
+                                <br>
+                                <!-- input TELÉFONO -->
+                                <input class="form-control" type="text" name="phone" maxlength="30" placeholder="Teléfono *" required="">
+                                <br>
+                                <!-- input CORREO ELECTRÓNICO -->
+                                <input class="form-control" type="text" ftype="email" name="email" maxlength="100" placeholder="Correo electrónico *" required="">
+                                <br>
+                                <!-- textarea COMENTARIOS -->
+                                <textarea class="form-control" name="comentarios" placeholder="Indica aquí tus comentarios."></textarea>
+                                <br>
+                                <p><b>Envía tu consulta</b>:</p>
+                                <!-- botones de ENVIAR & RESTABLECER -->
+                                <div>
+                                    <div class="d-flex">
+                                        <button class="form-control" type="submit" value="Enviar" title="Enviar"><i class="bi bi-arrow-right"></i>
+                                            Enviar
+                                        </button>&nbsp;
+                                        <button class="form-control" type="reset" name="reset" value="Restablecer" title="Restablecer"><i class="bi bi-eraser"></i>
+                                            Restablecer
+                                        </button>
+                                    </div>
+                                    <!-- Letra pequeña -->
+                                    <br><div class="small mb-1">Al enviar tu consulta, aceptas nuestras Condiciones de uso. <a href="file:///C:/Users/danie/Downloads/index.php" class="link">¿No lo tienes claro? <b>Volver a Inicio</b></a>.</div>
+                            </div>
+                            </div>
+                        </form>
+                         
+                    </div>
+                    <div class="col-md-6"><img class="card-img-top mb-5 mb-md-0" src="https://dummyimage.com/600x700/dee2e6/6c757d.jpg" alt="..." /></div>
+                </div>
+            </div>
+        </section>

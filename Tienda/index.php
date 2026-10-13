@@ -53,9 +53,8 @@
                         </li>
 
                         <li class="nav-item">
-                            <a class="nav-link"
-                            href="index.php?p=informacion">
-                                Información
+                            <a class="nav-link <?php if ($pagina === 'conocenos') echo 'active'; ?>" href="index.php?p=conocenos">
+                                Conócenos
                             </a>
                         </li>
 
@@ -114,8 +113,8 @@
                 include 'product-item.html';
                 include 'products-section.php';
                 break;
-            case "informacion-producto":
-                include 'product-item.html';
+            case "conocenos":
+                include 'contacus.html';
                 break;
             case "tienda":
                 include 'products-section.php';
@@ -124,7 +123,10 @@
                 include 'products-section.php';
                 break;
             case "informacion-producto":
-                include 'product-item.html';
+                include 'product-item.php';
+                break;
+            case "solicitud-recibida": // <--- NUEVO CASO
+                include 'solicitud-recibida.html';
                 break;
             default:
                 //include 'error-404.html';
