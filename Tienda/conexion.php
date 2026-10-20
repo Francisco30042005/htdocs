@@ -15,7 +15,8 @@ $db_nombre = "startshop";  // Nombre de tu base de datos
 
 // 2. Crear la conexión
 // Usamos el constructor de la clase mysqli (conexión orientada a objetos)
-$conexion = new mysqli($db_host, $db_usuario, $db_pass, $db_nombre);
+mysqli_report(MYSQLI_REPORT_OFF); // En PHP 8.1+ evita un error fatal y nos deja mostrar el mensaje
+$conexion = @new mysqli($db_host, $db_usuario, $db_pass, $db_nombre);
 
 // 3. Verificar si hubo un error en la conexión
 if ($conexion->connect_error) {
@@ -25,7 +26,10 @@ if ($conexion->connect_error) {
      * Esto es útil en desarrollo. En producción (una web real),
      * deberíamos mostrar un mensaje más amigable.
      */
-    die("Error de conexión: " . $conexion->connect_error);
+    die("<h2>Error de conexión con la base de datos</h2>"
+        . "<p>" . htmlspecialchars($conexion->connect_error) . "</p>"
+        . "<p>Comprueba que MySQL está arrancado en el panel de XAMPP y que existe la base de datos <b>"
+        . $db_nombre . "</b>. Abre <a href='comprobar.php'>comprobar.php</a> para ver el diagnóstico completo.</p>");
 }
 
 // 4. Establecer el juego de caracteres a UTF-8 (¡MUY IMPORTANTE!)
