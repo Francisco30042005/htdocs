@@ -39,12 +39,11 @@ $faltan = array_filter($plantilla, fn($a) => !file_exists(__DIR__ . '/' . $a));
 comprobar('Estilos e imágenes de la plantilla', !$faltan, $faltan ? 'Faltan: ' . implode(', ', $faltan) : 'Todos presentes',
     'Copia las carpetas css, js, lib e img de la plantilla MultiShop.');
 
-// 5. Carpeta de imágenes de productos
-$hay_images = is_dir(__DIR__ . '/images');
-$num_imagenes = $hay_images ? count(glob(__DIR__ . '/images/*.jpg')) : 0;
-comprobar('Carpeta images/ con fotos de productos', $hay_images && $num_imagenes > 0,
-    $hay_images ? "$num_imagenes imágenes .jpg" : 'No existe la carpeta images/',
-    'Copia la carpeta images/ de tu web antigua (fotos con nombre REFERENCIA.jpg). Mientras tanto se ven imágenes grises de relleno.');
+// 5. Imágenes de productos (img/COD-XX.jpg)
+$num_imagenes = count(glob(__DIR__ . '/img/COD-*.jpg'));
+comprobar('Fotos de productos en img/ (COD-XX.jpg)', $num_imagenes > 0,
+    "$num_imagenes imágenes COD-*.jpg",
+    'Copia las fotos de los productos en la carpeta img/ con el nombre COD-XX.jpg según su referencia. Mientras tanto se ven imágenes grises de relleno.');
 
 // 6. Conexión con MySQL (mismos datos que conexion.php)
 $db_host = "localhost"; $db_usuario = "root"; $db_pass = ""; $db_nombre = "startshop";

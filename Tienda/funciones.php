@@ -109,16 +109,26 @@ function precio(float $valor): string
 }
 
 /**
- * Ruta de la imagen del producto (images/REFERENCIA.jpg)
+ * Ruta de la imagen del producto (img/COD-XX.jpg según la referencia)
  * o una imagen de relleno si no existe.
+ * Sirve tanto si la referencia es "COD-01" como si es "01" o "1".
  */
 function imagen_producto(array $producto, string $relleno = '600x600'): string
 {
-    $ruta = 'images/' . $producto['referencia'] . '.jpg';
-    if (!file_exists(__DIR__ . '/' . $ruta)) {
-        $ruta = 'https://dummyimage.com/' . $relleno . '/dee2e6/6c757d.jpg';
+    $referencia = trim((string) $producto['referencia']);
+    $nombres = [$referencia, 'COD-' . $referencia];
+    if (ctype_digit($referencia)) {
+        $nombres[] = 'COD-' . str_pad($referencia, 2, '0', STR_PAD_LEFT);
     }
-    return $ruta;
+    foreach ($nombres as $nombre) {
+        foreach (['jpg', 'JPG', 'jpeg', 'png'] as $extension) {
+            $ruta = 'img/' . $nombre . '.' . $extension;
+            if ($nombre !== '' && file_exists(__DIR__ . '/' . $ruta)) {
+                return $ruta;
+            }
+        }
+    }
+    return 'https://dummyimage.com/' . $relleno . '/dee2e6/6c757d.jpg';
 }
 
 /** Enlace a la ficha del producto. */
@@ -165,7 +175,11 @@ function tarjeta_producto(array $producto): void
                 <span class="badge badge-primary text-dark position-absolute px-2 py-1" style="top: 10px; right: 10px; z-index: 1;">Rebajado</span>
             <?php endif; ?>
             <div class="product-action">
-                <a class="btn btn-outline-dark btn-square" href="#" title="Añadir al carrito"><i class="fa fa-shopping-cart"></i></a>
+                <form class="d-inline" action="index.php?p=carrito" method="post">
+                    <input type="hidden" name="accion" value="anadir">
+                    <input type="hidden" name="id" value="<?= (int) $producto['id'] ?>">
+                    <button type="submit" class="btn btn-outline-dark btn-square" title="Añadir al carrito"><i class="fa fa-shopping-cart"></i></button>
+                </form>
                 <a class="btn btn-outline-dark btn-square" href="<?= e($url) ?>" title="Ver producto"><i class="fa fa-search"></i></a>
             </div>
         </div>
@@ -187,15 +201,15 @@ function tarjeta_producto(array $producto): void
     <?php
 }
 
-/** Migas de pan (breadcrumb) de la plantilla. $migas = ['Texto' => 'url', ..., 'Actual' => null] */
-function migas(array $migas): void
+
+function cookies(array $cookies): void
 {
     ?>
     <div class="container-fluid">
         <div class="row px-xl-5">
             <div class="col-12">
                 <nav class="breadcrumb bg-light mb-30">
-                    <?php foreach ($migas as $texto => $url): ?>
+                    <?php foreach ($cookies as $texto => $url): ?>
                         <?php if ($url): ?>
                             <a class="breadcrumb-item text-dark" href="<?= e($url) ?>"><?= e($texto) ?></a>
                         <?php else: ?>
@@ -207,4 +221,66 @@ function migas(array $migas): void
         </div>
     </div>
     <?php
+}
+
+
+/* ------------------------------------------------------------------
+   Carrito de la compra
+   Se guarda en la sesión: $_SESSION['carrito'] = [id_producto => cantidad]
+   ------------------------------------------------------------------ */
+
+/** Precio que se cobra del producto (el rebajado si lo tiene). */
+function precio_final(array $producto): float
+{
+    return esta_rebajado($producto) ? (float) $producto['precio_rebajado'] : (float) $producto['precio'];
+}
+
+/** Añade unidades de un producto al carrito. */
+function carrito_anadir(int $id, int $cantidad = 1): void
+{
+    if ($id <= 0 || $cantidad <= 0) {
+        return;
+    }
+    $_SESSION['carrito'][$id] = ($_SESSION['carrito'][$id] ?? 0) + $cantidad;
+}
+
+/** Cambia la cantidad de un producto (0 o menos = se quita). */
+function carrito_cambiar(int $id, int $cantidad): void
+{
+    if ($cantidad > 0) {
+        $_SESSION['carrito'][$id] = $cantidad;
+    } else {
+        unset($_SESSION['carrito'][$id]);
+    }
+}
+
+/** Número total de unidades en el carrito (para el contador del icono). */
+function carrito_unidades(): int
+{
+    return array_sum($_SESSION['carrito'] ?? []);
+}
+
+/**
+ * Líneas del carrito con los datos de cada producto:
+ * [['producto' => [...], 'cantidad' => 2, 'precio' => 9.5, 'total' => 19.0], ...]
+ * Si un producto ya no existe en la base de datos se quita del carrito.
+ */
+function carrito_lineas(mysqli $conexion): array
+{
+    $lineas = [];
+    foreach ($_SESSION['carrito'] ?? [] as $id => $cantidad) {
+        $producto = obtener_producto($conexion, (int) $id);
+        if (!$producto) {
+            unset($_SESSION['carrito'][$id]);
+            continue;
+        }
+        $precio = precio_final($producto);
+        $lineas[] = [
+            'producto' => $producto,
+            'cantidad' => (int) $cantidad,
+            'precio'   => $precio,
+            'total'    => $precio * $cantidad,
+        ];
+    }
+    return $lineas;
 }

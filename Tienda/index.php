@@ -5,12 +5,39 @@
   Fecha     : 20 Octubre 2026
   Plantilla : MultiShop (HTML Codex) adaptada a Start Shop
 */
+session_start(); // La sesión guarda el carrito de la compra
 $pagina = $_GET['p'] ?? null;
 $busqueda = trim($_GET['q'] ?? '');
 
 // Conexión con la bbdd y funciones comunes
 require_once 'conexion.php';
 require_once 'funciones.php';
+
+// Acciones del carrito (llegan por POST desde los botones "Añadir al carrito" y la página del carrito)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
+    switch ($_POST['accion']) {
+        case 'anadir':
+            $id_anadir = (int) ($_POST['id'] ?? 0);
+            if (obtener_producto($conexion, $id_anadir)) { // Solo productos que existen
+                carrito_anadir($id_anadir, max(1, (int) ($_POST['cantidad'] ?? 1)));
+            }
+            break;
+        case 'actualizar':
+            foreach ((array) ($_POST['cantidad'] ?? []) as $id => $cantidad) {
+                carrito_cambiar((int) $id, (int) $cantidad);
+            }
+            if (isset($_POST['quitar'])) {
+                carrito_cambiar((int) $_POST['quitar'], 0);
+            }
+            break;
+        case 'vaciar':
+            $_SESSION['carrito'] = [];
+            break;
+    }
+    // Redirigimos para que al recargar la página no se repita la acción
+    header('Location: index.php?p=carrito');
+    exit;
+}
 
 // Título de la pestaña según la sección
 $titulos = [
@@ -77,7 +104,7 @@ function activo(bool $condicion): string
                 <div class="d-inline-flex align-items-center d-block d-lg-none">
                     <a href="index.php?p=carrito" class="btn px-0 ml-2" title="Carrito">
                         <i class="fas fa-shopping-cart text-dark"></i>
-                        <span class="badge text-dark border border-dark rounded-circle" style="padding-bottom: 2px;">0</span>
+                        <span class="badge text-dark border border-dark rounded-circle" style="padding-bottom: 2px;"><?= carrito_unidades() ?></span>
                     </a>
                 </div>
             </div>
@@ -154,7 +181,7 @@ function activo(bool $condicion): string
                         <div class="navbar-nav ml-auto py-0 d-none d-lg-block">
                             <a href="index.php?p=carrito" class="btn px-0 ml-3" title="Carrito">
                                 <i class="fas fa-shopping-cart text-primary"></i>
-                                <span class="badge text-secondary border border-secondary rounded-circle" style="padding-bottom: 2px;">0</span>
+                                <span class="badge text-secondary border border-secondary rounded-circle" style="padding-bottom: 2px;"><?= carrito_unidades() ?></span>
                             </a>
                         </div>
                     </div>

@@ -68,22 +68,24 @@ migas([
                     <!-- Descripción -->
                     <p class="mb-4"><?= nl2br(e($producto_detalle['descripcion'])) ?></p>
 
-                    <div class="d-flex align-items-center mb-4 pt-2">
+                    <form class="d-flex align-items-center mb-4 pt-2" action="index.php?p=carrito" method="post">
+                        <input type="hidden" name="accion" value="anadir">
+                        <input type="hidden" name="id" value="<?= (int) $producto_detalle['id'] ?>">
                         <div class="input-group quantity mr-3" style="width: 130px;">
                             <div class="input-group-btn">
                                 <button class="btn btn-primary btn-minus" type="button">
                                     <i class="fa fa-minus"></i>
                                 </button>
                             </div>
-                            <input type="text" id="inputQuantity" class="form-control bg-secondary border-0 text-center" value="1">
+                            <input type="text" id="inputQuantity" name="cantidad" class="form-control bg-secondary border-0 text-center" value="1">
                             <div class="input-group-btn">
                                 <button class="btn btn-primary btn-plus" type="button">
                                     <i class="fa fa-plus"></i>
                                 </button>
                             </div>
                         </div>
-                        <button class="btn btn-primary px-3" type="button"><i class="fa fa-shopping-cart mr-1"></i> Añadir al carrito</button>
-                    </div>
+                        <button class="btn btn-primary px-3" type="submit"><i class="fa fa-shopping-cart mr-1"></i> Añadir al carrito</button>
+                    </form>
                     <div class="d-flex pt-2">
                         <strong class="text-dark mr-2">Compartir:</strong>
                         <div class="d-inline-flex">

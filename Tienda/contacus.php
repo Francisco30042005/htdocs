@@ -5,7 +5,7 @@
 */
 $error_envio = isset($_GET['error']);
 
-migas([
+cookies([
     'Inicio' => 'index.php',
     'Conócenos' => null,
 ]);
