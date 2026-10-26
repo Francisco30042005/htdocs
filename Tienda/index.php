@@ -20,6 +20,7 @@ $titulos = [
     'rebajados'            => 'Rebajados',
     'informacion-producto' => 'Producto',
     'solicitud-recibida'   => 'Mensaje enviado',
+    'carrito'              => 'Carrito',
 ];
 $titulo = $titulos[$pagina] ?? 'Página no encontrada';
 
@@ -74,7 +75,7 @@ function activo(bool $condicion): string
             </div>
             <div class="col-lg-6 text-center text-lg-right">
                 <div class="d-inline-flex align-items-center d-block d-lg-none">
-                    <a href="#" class="btn px-0 ml-2" title="Carrito">
+                    <a href="index.php?p=carrito" class="btn px-0 ml-2" title="Carrito">
                         <i class="fas fa-shopping-cart text-dark"></i>
                         <span class="badge text-dark border border-dark rounded-circle" style="padding-bottom: 2px;">0</span>
                     </a>
@@ -140,16 +141,18 @@ function activo(bool $condicion): string
                             <a href="index.php" class="nav-item nav-link<?= activo($pagina === null) ?>">Inicio</a>
                             <a href="index.php?p=conocenos" class="nav-item nav-link<?= activo($pagina === 'conocenos') ?>">Conócenos</a>
                             <div class="nav-item dropdown">
-                                <a href="#" class="nav-link dropdown-toggle<?= activo(in_array($pagina, ['tienda', 'rebajados', 'informacion-producto'], true)) ?>" data-toggle="dropdown">Tienda <i class="fa fa-angle-down mt-1"></i></a>
+                                <a href="#" class="nav-link dropdown-toggle<?= activo(in_array($pagina, ['tienda', 'rebajados', 'informacion-producto', 'carrito'], true)) ?>" data-toggle="dropdown">Tienda <i class="fa fa-angle-down mt-1"></i></a>
                                 <div class="dropdown-menu bg-primary rounded-0 border-0 m-0">
                                     <a href="index.php?p=tienda" class="dropdown-item">Productos</a>
                                     <div class="dropdown-divider"></div>
                                     <a href="index.php?p=rebajados" class="dropdown-item">Rebajados</a>
+                                    <div class="dropdown-divider"></div>
+                                    <a href="index.php?p=carrito" class="dropdown-item">Carrito</a>
                                 </div>
                             </div>
                         </div>
                         <div class="navbar-nav ml-auto py-0 d-none d-lg-block">
-                            <a href="#" class="btn px-0 ml-3" title="Carrito">
+                            <a href="index.php?p=carrito" class="btn px-0 ml-3" title="Carrito">
                                 <i class="fas fa-shopping-cart text-primary"></i>
                                 <span class="badge text-secondary border border-secondary rounded-circle" style="padding-bottom: 2px;">0</span>
                             </a>
@@ -180,6 +183,9 @@ function activo(bool $condicion): string
             break;
         case 'solicitud-recibida':
             include 'solicitud-recibida.html';
+            break;
+        case 'carrito':
+            include 'carrito.php';
             break;
         default:
             include 'error-404.html';
