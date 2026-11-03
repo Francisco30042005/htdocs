@@ -1,3 +1,8 @@
+<?php
+/*
+  Página de error 404 (sección que no existe).
+*/
+?>
     <!-- Error 404 Start -->
     <div class="container-fluid">
         <div class="row px-xl-5">

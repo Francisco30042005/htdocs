@@ -1,14 +1,15 @@
+<?php
+/*
+  Confirmación de envío del formulario de Conócenos (index.php?p=solicitud-recibida).
+*/
+mostrar_migas_de_pan([
+    'Inicio' => 'index.php',
+    'Conócenos' => 'index.php?p=conocenos',
+    'Mensaje enviado' => null,
+]);
+?>
     <!-- Solicitud recibida Start -->
     <div class="container-fluid">
-        <div class="row px-xl-5">
-            <div class="col-12">
-                <nav class="breadcrumb bg-light mb-30">
-                    <a class="breadcrumb-item text-dark" href="index.php">Inicio</a>
-                    <a class="breadcrumb-item text-dark" href="index.php?p=conocenos">Conócenos</a>
-                    <span class="breadcrumb-item active">Mensaje enviado</span>
-                </nav>
-            </div>
-        </div>
         <div class="row px-xl-5">
             <div class="col">
                 <div class="bg-light p-30 text-center">

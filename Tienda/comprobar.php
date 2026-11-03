@@ -9,39 +9,39 @@ ini_set('display_errors', '1');
 mysqli_report(MYSQLI_REPORT_OFF);
 
 $comprobaciones = [];
-function comprobar(string $que, bool $ok, string $detalle = '', string $solucion = ''): void
+function registrar_comprobacion(string $que, bool $ok, string $detalle = '', string $solucion = ''): void
 {
     global $comprobaciones;
     $comprobaciones[] = compact('que', 'ok', 'detalle', 'solucion');
 }
 
 // 1. Versión de PHP
-comprobar('Versión de PHP (mínimo 7.4)', version_compare(PHP_VERSION, '7.4', '>='), PHP_VERSION,
+registrar_comprobacion('Versión de PHP (mínimo 7.4)', version_compare(PHP_VERSION, '7.4', '>='), PHP_VERSION,
     'Actualiza XAMPP a una versión con PHP 7.4 o superior.');
 
 // 2. Extensión mysqli con mysqlnd (necesaria para get_result / fetch_all)
-comprobar('Extensión mysqli', extension_loaded('mysqli'), '',
+registrar_comprobacion('Extensión mysqli', extension_loaded('mysqli'), '',
     'Activa extension=mysqli en C:\\xampp\\php\\php.ini y reinicia Apache.');
-comprobar('Driver mysqlnd', function_exists('mysqli_fetch_all'), '',
+registrar_comprobacion('Driver mysqlnd', function_exists('mysqli_fetch_all'), '',
     'Activa mysqlnd en php.ini (en XAMPP viene activado por defecto).');
 
 // 3. Archivos de la tienda
-$archivos = ['conexion.php', 'funciones.php', 'inicio.php', 'products-section.php', 'product-item.php',
-             'contacus.php', 'generar-mail.php', 'solicitud-recibida.html', 'error-404.html'];
+$archivos = ['conexion.php', 'inicio.php', 'products-section.php', 'product-item.php',
+             'contacus.php', 'generar-mail.php', 'solicitud-recibida.php', 'error-404.php'];
 $faltan = array_filter($archivos, fn($a) => !file_exists(__DIR__ . '/' . $a));
-comprobar('Archivos PHP de la tienda', !$faltan, $faltan ? 'Faltan: ' . implode(', ', $faltan) : 'Todos presentes',
+registrar_comprobacion('Archivos PHP de la tienda', !$faltan, $faltan ? 'Faltan: ' . implode(', ', $faltan) : 'Todos presentes',
     'Copia en esta carpeta los archivos que faltan.');
 
 // 4. Archivos de la plantilla MultiShop
 $plantilla = ['css/style.css', 'js/main.js', 'lib/owlcarousel/owl.carousel.min.js', 'lib/easing/easing.min.js',
               'lib/animate/animate.min.css', 'img/carousel-1.jpg'];
 $faltan = array_filter($plantilla, fn($a) => !file_exists(__DIR__ . '/' . $a));
-comprobar('Estilos e imágenes de la plantilla', !$faltan, $faltan ? 'Faltan: ' . implode(', ', $faltan) : 'Todos presentes',
+registrar_comprobacion('Estilos e imágenes de la plantilla', !$faltan, $faltan ? 'Faltan: ' . implode(', ', $faltan) : 'Todos presentes',
     'Copia las carpetas css, js, lib e img de la plantilla MultiShop.');
 
 // 5. Imágenes de productos (img/COD-XX.jpg)
 $num_imagenes = count(glob(__DIR__ . '/img/COD-*.jpg'));
-comprobar('Fotos de productos en img/ (COD-XX.jpg)', $num_imagenes > 0,
+registrar_comprobacion('Fotos de productos en img/ (COD-XX.jpg)', $num_imagenes > 0,
     "$num_imagenes imágenes COD-*.jpg",
     'Copia las fotos de los productos en la carpeta img/ con el nombre COD-XX.jpg según su referencia. Mientras tanto se ven imágenes grises de relleno.');
 
@@ -51,12 +51,12 @@ $conexion = null;
 if (extension_loaded('mysqli')) {
     $servidor = @new mysqli($db_host, $db_usuario, $db_pass);
     $ok_servidor = !$servidor->connect_error;
-    comprobar('Servidor MySQL arrancado', $ok_servidor, $servidor->connect_error ?? '',
+    registrar_comprobacion('Servidor MySQL arrancado', $ok_servidor, $servidor->connect_error ?? '',
         'Abre el panel de XAMPP y pulsa "Start" en MySQL.');
 
     if ($ok_servidor) {
         $existe = $servidor->select_db($db_nombre);
-        comprobar("Base de datos «{$db_nombre}»", $existe, $existe ? 'Existe' : 'No existe',
+        registrar_comprobacion("Base de datos «{$db_nombre}»", $existe, $existe ? 'Existe' : 'No existe',
             "Crea la base de datos {$db_nombre} en phpMyAdmin (http://localhost/phpmyadmin) e importa tus productos.");
         if ($existe) {
             $conexion = $servidor;
@@ -69,20 +69,20 @@ if ($conexion) {
     $necesarias = ['id', 'referencia', 'nombre', 'precio', 'precio_rebajado', 'descripcion', 'valoracion'];
     $res = $conexion->query("SHOW COLUMNS FROM productos");
     if (!$res) {
-        comprobar('Tabla «productos»', false, $conexion->error, 'Crea la tabla productos en la base de datos startshop.');
+        registrar_comprobacion('Tabla «productos»', false, $conexion->error, 'Crea la tabla productos en la base de datos startshop.');
     } else {
         $columnas = array_column($res->fetch_all(MYSQLI_ASSOC), 'Field');
         $faltan = array_diff($necesarias, $columnas);
-        comprobar('Columnas de la tabla «productos»', !$faltan,
+        registrar_comprobacion('Columnas de la tabla «productos»', !$faltan,
             $faltan ? 'Faltan: ' . implode(', ', $faltan) : 'Todas presentes (' . implode(', ', $columnas) . ')',
             'Añade las columnas que faltan o dime cómo se llaman en tu tabla.');
         $total = $conexion->query("SELECT COUNT(*) FROM productos")->fetch_row()[0] ?? 0;
-        comprobar('Productos en la tabla', $total > 0, "$total productos", 'Inserta productos en la tabla.');
+        registrar_comprobacion('Productos en la tabla', $total > 0, "$total productos", 'Inserta productos en la tabla.');
     }
 }
 
 // 8. Envío de correo (solo informativo, no cuenta como error)
-comprobar('Correo del formulario de contacto (informativo)', true,
+registrar_comprobacion('Correo del formulario de contacto (informativo)', true,
     'SMTP = ' . ini_get('SMTP') . ':' . ini_get('smtp_port') . '. En local, XAMPP solo envía correos si configuras sendmail/SMTP en php.ini; aun así el formulario lleva a la página de confirmación.');
 
 $errores = count(array_filter($comprobaciones, fn($c) => !$c['ok']));

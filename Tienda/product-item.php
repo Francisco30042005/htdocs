@@ -5,9 +5,9 @@
 */
 // Recogemos el id del producto que llega por la URL
 $id_producto = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-$producto_detalle = $id_producto ? obtener_producto($conexion, $id_producto) : null;
+$producto_detalle = $id_producto ? obtener_producto_por_id($conexion, $id_producto) : null;
 
-migas([
+mostrar_migas_de_pan([
     'Inicio' => 'index.php',
     'Tienda' => 'index.php?p=tienda',
     ($producto_detalle['nombre'] ?? 'Producto') => null,
@@ -29,8 +29,8 @@ migas([
     </div>
 <?php else: ?>
     <?php
-        $detalle_rebajado = esta_rebajado($producto_detalle);
-        $detalle_imagen = imagen_producto($producto_detalle, '600x700');
+        $detalle_rebajado = tiene_precio_rebajado($producto_detalle);
+        $detalle_imagen = obtener_imagen_producto($producto_detalle, '600x700');
         $relacionados = obtener_productos($conexion, false, null, 8, (int) $producto_detalle['id']);
     ?>
     <!-- Shop Detail Start -->
@@ -38,7 +38,7 @@ migas([
         <div class="row px-xl-5">
             <div class="col-lg-5 mb-30">
                 <div class="bg-light position-relative">
-                    <img class="w-100 h-100" src="<?= e($detalle_imagen) ?>" alt="<?= e($producto_detalle['nombre']) ?>">
+                    <img class="w-100 h-100" src="<?= escapar_html($detalle_imagen) ?>" alt="<?= escapar_html($producto_detalle['nombre']) ?>">
                     <?php if ($detalle_rebajado): ?>
                         <span class="badge badge-primary text-dark position-absolute px-3 py-2" style="top: 15px; right: 15px;">Rebajado</span>
                     <?php endif; ?>
@@ -47,26 +47,26 @@ migas([
 
             <div class="col-lg-7 h-auto mb-30">
                 <div class="h-100 bg-light p-30">
-                    <small class="text-muted">SKU: <?= e($producto_detalle['referencia']) ?></small>
-                    <h3><?= e($producto_detalle['nombre']) ?></h3>
+                    <small class="text-muted">SKU: <?= escapar_html($producto_detalle['referencia']) ?></small>
+                    <h3><?= escapar_html($producto_detalle['nombre']) ?></h3>
                     <!-- Valoración -->
                     <div class="d-flex mb-3">
                         <div class="mr-2">
-                            <?= estrellas($producto_detalle['valoracion'], 'text-primary') ?>
+                            <?= generar_estrellas_html($producto_detalle['valoracion'], 'text-primary') ?>
                         </div>
                         <small class="pt-1">(<?= number_format((float) $producto_detalle['valoracion'], 1) ?> / 5)</small>
                     </div>
                     <!-- Precio -->
                     <div class="d-flex align-items-baseline mb-4">
                         <?php if ($detalle_rebajado): ?>
-                            <h3 class="font-weight-semi-bold mb-0"><?= precio($producto_detalle['precio_rebajado']) ?></h3>
-                            <h5 class="text-muted ml-3 mb-0"><del><?= precio($producto_detalle['precio']) ?></del></h5>
+                            <h3 class="font-weight-semi-bold mb-0"><?= formatear_precio($producto_detalle['precio_rebajado']) ?></h3>
+                            <h5 class="text-muted ml-3 mb-0"><del><?= formatear_precio($producto_detalle['precio']) ?></del></h5>
                         <?php else: ?>
-                            <h3 class="font-weight-semi-bold mb-0"><?= precio($producto_detalle['precio']) ?></h3>
+                            <h3 class="font-weight-semi-bold mb-0"><?= formatear_precio($producto_detalle['precio']) ?></h3>
                         <?php endif; ?>
                     </div>
                     <!-- Descripción -->
-                    <p class="mb-4"><?= nl2br(e($producto_detalle['descripcion'])) ?></p>
+                    <p class="mb-4"><?= nl2br(escapar_html($producto_detalle['descripcion'])) ?></p>
 
                     <form class="d-flex align-items-center mb-4 pt-2" action="index.php?p=carrito" method="post">
                         <input type="hidden" name="accion" value="anadir">
@@ -108,15 +108,15 @@ migas([
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="tab-pane-1">
                             <h4 class="mb-3">Descripción del producto</h4>
-                            <p><?= nl2br(e($producto_detalle['descripcion'])) ?></p>
+                            <p><?= nl2br(escapar_html($producto_detalle['descripcion'])) ?></p>
                         </div>
                         <div class="tab-pane fade" id="tab-pane-2">
                             <h4 class="mb-3">Información adicional</h4>
                             <ul class="list-group list-group-flush">
-                                <li class="list-group-item px-0 bg-transparent"><strong>Referencia:</strong> <?= e($producto_detalle['referencia']) ?></li>
-                                <li class="list-group-item px-0 bg-transparent"><strong>Precio:</strong> <?= precio($producto_detalle['precio']) ?></li>
+                                <li class="list-group-item px-0 bg-transparent"><strong>Referencia:</strong> <?= escapar_html($producto_detalle['referencia']) ?></li>
+                                <li class="list-group-item px-0 bg-transparent"><strong>Precio:</strong> <?= formatear_precio($producto_detalle['precio']) ?></li>
                                 <?php if ($detalle_rebajado): ?>
-                                    <li class="list-group-item px-0 bg-transparent"><strong>Precio rebajado:</strong> <?= precio($producto_detalle['precio_rebajado']) ?></li>
+                                    <li class="list-group-item px-0 bg-transparent"><strong>Precio rebajado:</strong> <?= formatear_precio($producto_detalle['precio_rebajado']) ?></li>
                                 <?php endif; ?>
                                 <li class="list-group-item px-0 bg-transparent"><strong>Valoración:</strong> <?= number_format((float) $producto_detalle['valoracion'], 1) ?> / 5</li>
                             </ul>
@@ -137,7 +137,7 @@ migas([
             <div class="col">
                 <div class="owl-carousel related-carousel">
                     <?php foreach ($relacionados as $producto): ?>
-                        <?php tarjeta_producto($producto); ?>
+                        <?php mostrar_tarjeta_producto($producto); ?>
                     <?php endforeach; ?>
                 </div>
             </div>

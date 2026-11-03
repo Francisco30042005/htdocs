@@ -14,15 +14,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Recogemos los campos quitando saltos de línea (evita inyectar cabeceras en el e-mail)
-function campo(string $nombre): string
+function obtener_campo_formulario(string $nombre): string
 {
     return trim(str_replace(["\r", "\n"], ' ', $_POST[$nombre] ?? ''));
 }
 
-$nombre      = campo('nombre');
-$apellidos   = campo('apellidos');
-$telefono    = campo('phone');
-$remitente   = filter_var(campo('email'), FILTER_VALIDATE_EMAIL);
+$nombre      = obtener_campo_formulario('nombre');
+$apellidos   = obtener_campo_formulario('apellidos');
+$telefono    = obtener_campo_formulario('phone');
+$remitente   = filter_var(obtener_campo_formulario('email'), FILTER_VALIDATE_EMAIL);
 $comentarios = trim($_POST['comentarios'] ?? '');
 
 // Validación: campos obligatorios y e-mail correcto

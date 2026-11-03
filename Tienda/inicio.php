@@ -114,7 +114,7 @@ $productos_rebajados = obtener_productos($conexion, true, null, 8);
             <?php endif; ?>
             <?php foreach ($ultimos_productos as $producto): ?>
                 <div class="col-lg-3 col-md-4 col-sm-6 pb-1">
-                    <?php tarjeta_producto($producto); ?>
+                    <?php mostrar_tarjeta_producto($producto); ?>
                 </div>
             <?php endforeach; ?>
         </div>
@@ -129,7 +129,7 @@ $productos_rebajados = obtener_productos($conexion, true, null, 8);
         <div class="row px-xl-5">
             <?php foreach ($productos_rebajados as $producto): ?>
                 <div class="col-lg-3 col-md-4 col-sm-6 pb-1">
-                    <?php tarjeta_producto($producto); ?>
+                    <?php mostrar_tarjeta_producto($producto); ?>
                 </div>
             <?php endforeach; ?>
             <div class="col-12 text-center">

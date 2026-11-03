@@ -5,7 +5,7 @@
 */
 $error_envio = isset($_GET['error']);
 
-cookies([
+mostrar_migas_de_pan([
     'Inicio' => 'index.php',
     'Conócenos' => null,
 ]);

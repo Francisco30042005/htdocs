@@ -6,11 +6,11 @@
 */
 const GASTOS_ENVIO = 10; // Gastos de envío fijos
 
-$lineas = carrito_lineas($conexion);
+$lineas = obtener_lineas_carrito($conexion);
 $subtotal = array_sum(array_column($lineas, 'total'));
 $envio = $lineas ? GASTOS_ENVIO : 0;
 
-cookies([
+mostrar_migas_de_pan([
     'Inicio' => 'index.php',
     'Tienda' => 'index.php?p=tienda',
     'Carrito' => null,
@@ -51,12 +51,12 @@ cookies([
                                 <?php $producto = $linea['producto']; $id = (int) $producto['id']; ?>
                             <tr>
                                 <td class="align-middle text-left">
-                                    <a href="<?= e(url_producto($producto)) ?>" class="text-dark">
-                                        <img src="<?= e(imagen_producto($producto, '100x100')) ?>" alt="<?= e($producto['nombre']) ?>" style="width: 50px;">
-                                        <?= e($producto['nombre']) ?>
+                                    <a href="<?= escapar_html(obtener_url_producto($producto)) ?>" class="text-dark">
+                                        <img src="<?= escapar_html(obtener_imagen_producto($producto, '100x100')) ?>" alt="<?= escapar_html($producto['nombre']) ?>" style="width: 50px;">
+                                        <?= escapar_html($producto['nombre']) ?>
                                     </a>
                                 </td>
-                                <td class="align-middle"><?= precio($linea['precio']) ?></td>
+                                <td class="align-middle"><?= formatear_precio($linea['precio']) ?></td>
                                 <td class="align-middle">
                                     <div class="input-group quantity mx-auto" style="width: 100px;">
                                         <div class="input-group-btn">
@@ -72,7 +72,7 @@ cookies([
                                         </div>
                                     </div>
                                 </td>
-                                <td class="align-middle"><?= precio($linea['total']) ?></td>
+                                <td class="align-middle"><?= formatear_precio($linea['total']) ?></td>
                                 <td class="align-middle"><button type="submit" name="quitar" value="<?= $id ?>" class="btn btn-sm btn-danger" title="Quitar del carrito"><i class="fa fa-times"></i></button></td>
                             </tr>
                             <?php endforeach; ?>
@@ -90,17 +90,17 @@ cookies([
                     <div class="border-bottom pb-2">
                         <div class="d-flex justify-content-between mb-3">
                             <h6>Subtotal</h6>
-                            <h6><?= precio($subtotal) ?></h6>
+                            <h6><?= formatear_precio($subtotal) ?></h6>
                         </div>
                         <div class="d-flex justify-content-between">
                             <h6 class="font-weight-medium">Envío</h6>
-                            <h6 class="font-weight-medium"><?= precio($envio) ?></h6>
+                            <h6 class="font-weight-medium"><?= formatear_precio($envio) ?></h6>
                         </div>
                     </div>
                     <div class="pt-2">
                         <div class="d-flex justify-content-between mt-2">
                             <h5>Total</h5>
-                            <h5><?= precio($subtotal + $envio) ?></h5>
+                            <h5><?= formatear_precio($subtotal + $envio) ?></h5>
                         </div>
                         <button class="btn btn-block btn-primary font-weight-bold my-3 py-3" type="button">Finalizar compra</button>
                     </div>

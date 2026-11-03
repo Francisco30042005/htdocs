@@ -9710,3 +9710,95 @@ a.text-dark:hover, a.text-dark:focus {
     transform: translateY(-15px);
   }
 }
+
+/* ==========================================================================
+   MODO OSCURO
+   Se activa cuando <body> tiene la clase "tema-oscuro"
+   (index.php la pone si la cookie "tema" vale "oscuro").
+   ========================================================================== */
+body.tema-oscuro {
+  color: #b8c0c8;
+  background-color: #1b1f23;
+}
+
+.tema-oscuro h1, .tema-oscuro h2, .tema-oscuro h3,
+.tema-oscuro h4, .tema-oscuro h5, .tema-oscuro h6,
+.tema-oscuro .h1, .tema-oscuro .h2, .tema-oscuro .h3,
+.tema-oscuro .h4, .tema-oscuro .h5, .tema-oscuro .h6 {
+  color: #e9ecef;
+}
+
+/* Fondos */
+.tema-oscuro .bg-secondary { background-color: #1b1f23 !important; }
+.tema-oscuro .bg-light     { background-color: #262c32 !important; }
+.tema-oscuro .bg-dark      { background-color: #111417 !important; }
+
+/* Textos */
+.tema-oscuro .text-dark  { color: #e9ecef !important; }
+.tema-oscuro .text-body  { color: #b8c0c8 !important; }
+.tema-oscuro .text-muted { color: #8b959e !important; }
+.tema-oscuro a.text-dark:hover,
+.tema-oscuro a.text-body:hover { color: #FFD333 !important; }
+
+/* El texto oscuro sobre fondo amarillo (logo, etiquetas, menú Tienda) se mantiene */
+.tema-oscuro .bg-primary.text-dark,
+.tema-oscuro .bg-primary .text-dark,
+.tema-oscuro .badge-primary.text-dark { color: #3D464D !important; }
+
+/* Bordes y líneas */
+.tema-oscuro .border,
+.tema-oscuro .border-bottom { border-color: #3a424a !important; }
+.tema-oscuro .border-dark   { border-color: #e9ecef !important; }
+.tema-oscuro .section-title::after { border-top-color: #4a535c; }
+.tema-oscuro .list-group-item { color: #b8c0c8; border-color: #3a424a; }
+.tema-oscuro .breadcrumb-item.active { color: #8b959e; }
+
+/* Formularios */
+.tema-oscuro .form-control,
+.tema-oscuro .form-control:focus,
+.tema-oscuro .input-group-text {
+  color: #e9ecef;
+  background-color: #1b1f23;
+  border-color: #3a424a;
+}
+.tema-oscuro .form-control::placeholder { color: #7d8790; }
+
+/* Botones con borde oscuro */
+.tema-oscuro .btn-outline-dark { color: #e9ecef; border-color: #e9ecef; }
+.tema-oscuro .btn-outline-dark:hover { color: #1b1f23; background-color: #e9ecef; }
+
+/* Menú lateral "Tienda" */
+.tema-oscuro .navbar-vertical.navbar-light .navbar-nav .nav-link {
+  color: #b8c0c8;
+  border-bottom-color: #1b1f23;
+}
+.tema-oscuro .navbar-vertical.navbar-light .navbar-nav .nav-link:hover { color: #FFD333; }
+
+/* Pestañas de la ficha de producto */
+.tema-oscuro .nav-tabs { border-bottom-color: #3a424a; }
+.tema-oscuro .nav-tabs .nav-link:hover { border-color: #3a424a; }
+.tema-oscuro .nav-tabs .nav-link.active {
+  color: #e9ecef;
+  background-color: #1b1f23;
+  border-color: #3a424a #3a424a #1b1f23;
+}
+
+/* Tabla del carrito */
+.tema-oscuro .table-light,
+.tema-oscuro .table-light > th,
+.tema-oscuro .table-light > td { color: #b8c0c8; background-color: #262c32; }
+.tema-oscuro .table-light th,
+.tema-oscuro .table-light td { border-color: #262c32; }
+.tema-oscuro .table-hover tbody tr:hover { color: #e9ecef; background-color: #2f363d; }
+.tema-oscuro .table.table-borderless thead tr,
+.tema-oscuro .table.table-borderless tbody tr:not(:last-child) { border-bottom-color: #1b1f23; }
+
+/* ==========================================================================
+   TRADUCTOR DE GOOGLE: ocultar su barra y sus avisos
+   ========================================================================== */
+body > .skiptranslate,
+.goog-te-banner-frame,
+#goog-gt-tt,
+.goog-te-balloon-frame { display: none !important; }
+body { top: 0 !important; }
+.goog-text-highlight { background: none !important; box-shadow: none !important; }
