@@ -57,7 +57,7 @@ if (extension_loaded('mysqli')) {
     if ($ok_servidor) {
         $existe = $servidor->select_db($db_nombre);
         registrar_comprobacion("Base de datos «{$db_nombre}»", $existe, $existe ? 'Existe' : 'No existe',
-            "Crea la base de datos {$db_nombre} en phpMyAdmin (http://localhost/phpmyadmin) e importa tus productos.");
+            "Abre la tienda (index.php): al cargar se crea sola importando sql/startshop.sql.");
         if ($existe) {
             $conexion = $servidor;
         }

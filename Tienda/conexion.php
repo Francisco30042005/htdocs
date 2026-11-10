@@ -13,6 +13,17 @@ $db_usuario = "root";     // Usuario de la BD
 $db_pass = "";        // Contraseña (en XAMPP por defecto es vacía)
 $db_nombre = "startshop";  // Nombre de tu base de datos
 
+// 1b. Crear / actualizar la base de datos con sql/startshop.sql
+// (solo hace algo la primera vez o cuando ese archivo cambia; ver instalar-bd.php)
+mysqli_report(MYSQLI_REPORT_OFF);
+require_once __DIR__ . '/instalar-bd.php';
+$error_instalacion = sincronizar_bd($db_host, $db_usuario, $db_pass, $db_nombre);
+if ($error_instalacion !== null) {
+    die("<h2>Error al importar sql/startshop.sql</h2>"
+        . "<p>" . htmlspecialchars($error_instalacion) . "</p>"
+        . "<p>Revisa ese archivo (o impórtalo en phpMyAdmin para ver la línea exacta) y recarga la página.</p>");
+}
+
 // 2. Crear la conexión
 // Usamos el constructor de la clase mysqli (conexión orientada a objetos)
 mysqli_report(MYSQLI_REPORT_OFF); // En PHP 8.1+ evita un error fatal y nos deja mostrar el mensaje
