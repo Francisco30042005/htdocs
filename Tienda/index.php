@@ -31,6 +31,9 @@ require_once 'conexion.php';
 // Símbolo de moneda que se muestra en los precios
 const MONEDA = '€';
 
+// Gastos de envío fijos de cada pedido
+const GASTOS_ENVIO = 10;
+
 // Valores permitidos en las cookies de preferencias
 const IDIOMAS = ['es', 'en'];
 const TEMAS = ['claro', 'oscuro'];
@@ -315,6 +318,68 @@ function obtener_lineas_carrito(mysqli $conexion): array
     return $lineas;
 }
 
+/** Devuelve el % de descuento del cupón, o 0 si no existe o no está activo. */
+function obtener_descuento_cupon(mysqli $conexion, string $codigo): int
+{
+    $sentencia = $conexion->prepare("SELECT porcentaje FROM cupones WHERE codigo = ? AND activo = 1");
+    $sentencia->bind_param('s', $codigo);
+    $sentencia->execute();
+    $fila = $sentencia->get_result()->fetch_assoc();
+    return $fila ? (int) $fila['porcentaje'] : 0;
+}
+
+/** Suma el % de todos los cupones aplicados al carrito (como máximo 100 %). */
+function obtener_descuento_total(mysqli $conexion): int
+{
+    $porcentaje = 0;
+    foreach ($_SESSION['cupones'] ?? [] as $codigo) {
+        $porcentaje += obtener_descuento_cupon($conexion, $codigo);
+    }
+    return min($porcentaje, 100);
+}
+
+/**
+ * Finaliza la compra del carrito: descuenta las existencias de cada producto
+ * y vacía el carrito. Si de algún producto no hay unidades suficientes no se
+ * compra nada (transacción) y el carrito se queda como estaba.
+ *
+ * @return array ['ok' => bool, 'texto' => mensaje para el cliente]
+ */
+function finalizar_compra(mysqli $conexion): array
+{
+    $lineas = obtener_lineas_carrito($conexion);
+    if (!$lineas) {
+        return ['ok' => false, 'texto' => 'Tu carrito está vacío.'];
+    }
+
+    $conexion->begin_transaction();
+    $sentencia = $conexion->prepare("UPDATE productos SET existencias = existencias - ? WHERE id = ? AND existencias >= ?");
+    $total = 0;
+    foreach ($lineas as $linea) {
+        $id = (int) $linea['producto']['id'];
+        $cantidad = $linea['cantidad'];
+        $sentencia->bind_param('iii', $cantidad, $id, $cantidad);
+        $sentencia->execute();
+        if ($sentencia->affected_rows !== 1) {
+            $conexion->rollback();
+            $quedan = (int) $linea['producto']['existencias'];
+            return ['ok' => false, 'texto' => 'No hay unidades suficientes de «' . $linea['producto']['nombre'] . '»'
+                . ($quedan > 0 ? " (quedan $quedan). Cambia la cantidad y vuelve a intentarlo." : ' (está agotado). Quítalo del carrito para continuar.')];
+        }
+        $total += $linea['total'];
+    }
+    $conexion->commit();
+
+    // Descuento de los cupones aplicados
+    $porcentaje = obtener_descuento_total($conexion);
+    $total = $total - $total * $porcentaje / 100;
+
+    $_SESSION['carrito'] = [];
+    $_SESSION['cupones'] = [];
+    return ['ok' => true, 'texto' => '¡Gracias por tu compra, ' . $_SESSION['usuario']['usuario'] . '! Tu pedido de '
+        . formatear_precio($total + GASTOS_ENVIO) . ' (envío incluido) se ha realizado correctamente.'];
+}
+
 /* --------------------------------------------------------------------------
    Preferencias del visitante: modo claro/oscuro e idioma.
    Se guardan en las cookies "tema" e "idioma" durante 30 días.
@@ -413,18 +478,18 @@ function tiene_token_csrf_valido(): bool
 
 /**
  * Botón con el icono de usuario (a la izquierda del carrito).
- * Sin sesión: lleva al login. Con sesión: muestra el nombre del usuario.
+ * Sin sesión: lleva al login. Con sesión: muestra el nombre del usuario y lleva a "Mi cuenta".
  * $color = clase del color del icono (text-primary en el menú oscuro, text-dark en móvil).
  */
 function mostrar_boton_usuario(string $color): void
 {
     if (tiene_sesion_iniciada()) {
         ?>
-        <span class="btn px-0 ml-3" title="Sesión iniciada">
+        <a href="index.php?p=mi-cuenta" class="btn px-0 ml-3" title="Mi cuenta">
             <i class="fas fa-user <?= $color ?>"></i>
             <!-- "notranslate": el traductor de Google no cambia el nombre del usuario -->
             <span class="notranslate <?= $color ?> ml-1" translate="no"><?= escapar_html($_SESSION['usuario']['usuario']) ?></span>
-        </span>
+        </a>
         <?php
     } else {
         ?>
@@ -554,15 +619,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
             }
             break;
         case 'actualizar':
+        case 'finalizar':
+            // Primero se guardan las cantidades que haya en el formulario del carrito
             foreach ((array) ($_POST['cantidad'] ?? []) as $id => $cantidad) {
                 cambiar_cantidad_carrito((int) $id, (int) $cantidad);
             }
             if (isset($_POST['quitar'])) {
                 cambiar_cantidad_carrito((int) $_POST['quitar'], 0);
             }
+            if ($_POST['accion'] === 'finalizar') {
+                if (!tiene_sesion_iniciada()) {
+                    // Para comprar hay que iniciar sesión. El carrito sigue en la sesión
+                    // y, al entrar (o registrarse), se vuelve a esta página con todo igual.
+                    $_SESSION['volver_al_carrito'] = true;
+                    header('Location: index.php?p=login');
+                    exit;
+                }
+                $_SESSION['mensaje_carrito'] = finalizar_compra($conexion);
+            }
             break;
         case 'vaciar':
             $_SESSION['carrito'] = [];
+            break;
+        case 'aplicar_cupon':
+            $codigo = strtoupper(trim($_POST['codigo'] ?? ''));
+            if (in_array($codigo, $_SESSION['cupones'] ?? [], true)) {
+                $_SESSION['mensaje_carrito'] = ['ok' => false, 'texto' => 'Ese cupón ya está aplicado.'];
+            } elseif (obtener_descuento_cupon($conexion, $codigo) > 0) {
+                $_SESSION['cupones'][] = $codigo;
+            } else {
+                $_SESSION['mensaje_carrito'] = ['ok' => false, 'texto' => 'Ese código de descuento no es válido.'];
+            }
+            break;
+        case 'quitar_cupon':
+            $_SESSION['cupones'] = array_diff($_SESSION['cupones'] ?? [], [$_POST['codigo'] ?? '']);
             break;
     }
     // Redirigimos para que al recargar la página no se repita la acción
@@ -580,6 +670,7 @@ $titulos = [
     'solicitud-recibida'   => 'Mensaje enviado',
     'carrito'              => 'Carrito',
     'login'                => 'Acceder',
+    'mi-cuenta'            => 'Mi cuenta',
     'registro'             => 'Crear cuenta',
     'admin'                => 'Administración',
 ];
@@ -768,6 +859,9 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
             break;
         case 'carrito':
             include 'carrito.php';
+            break;
+        case 'mi-cuenta':
+            include 'mi-cuenta.php';
             break;
         case 'login':
             include 'login.php';

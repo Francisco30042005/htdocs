@@ -3,11 +3,17 @@
   Panel de administración (index.php?p=admin). Solo para administradores
   (admin-acciones.php redirige al login si no lo eres).
 
-  Pestañas: Productos (hecha) · Categorías y Pedidos (pendientes).
+  Pestañas: Productos · Cupones (admin-cupones.php) · Categorías y Pedidos (pendientes).
   Los formularios los procesa admin-acciones.php.
 
   Variables disponibles: $conexion, $errores_admin, $datos_producto
 */
+
+// Pestaña Cupones (index.php?p=admin&seccion=cupones)
+if (($_GET['seccion'] ?? '') === 'cupones') {
+    include 'admin-cupones.php';
+    return;
+}
 
 // Mensaje de "Producto creado / modificado / borrado" (se muestra una sola vez)
 $mensaje_admin = $_SESSION['mensaje_admin'] ?? '';
@@ -49,6 +55,7 @@ mostrar_migas_de_pan([
             <!-- Pestañas del panel -->
             <div class="mb-4">
                 <a class="btn btn-dark py-2 px-3 mr-1 mb-2 active" href="index.php?p=admin">Productos</a>
+                <a class="btn btn-outline-dark py-2 px-3 mr-1 mb-2" href="index.php?p=admin&amp;seccion=cupones">Cupones</a>
                 <span class="btn btn-outline-dark py-2 px-3 mr-1 mb-2 disabled" title="Próximamente">Categorías</span>
                 <span class="btn btn-outline-dark py-2 px-3 mb-2 disabled" title="Próximamente">Pedidos</span>
             </div>

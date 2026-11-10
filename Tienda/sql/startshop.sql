@@ -40,6 +40,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `productos`;
 DROP TABLE IF EXISTS `categorias`;
 DROP TABLE IF EXISTS `usuarios`;
+DROP TABLE IF EXISTS `cupones`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- --------------------------------------------------------
@@ -104,7 +105,10 @@ CREATE TABLE `usuarios` (
   `id` int(10) UNSIGNED NOT NULL,
   `usuario` varchar(50) NOT NULL,
   `contrasena` varchar(255) NOT NULL,
-  `rol` enum('admin','cliente') NOT NULL DEFAULT 'cliente'
+  `rol` enum('admin','cliente') NOT NULL DEFAULT 'cliente',
+  `nombre` varchar(100) DEFAULT NULL,
+  `direccion` varchar(200) DEFAULT NULL,
+  `telefono` varchar(20) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO `usuarios` (`id`, `usuario`, `contrasena`, `rol`) VALUES
@@ -112,6 +116,21 @@ INSERT INTO `usuarios` (`id`, `usuario`, `contrasena`, `rol`) VALUES
 (2, 'cliente', 'cliente1234', 'cliente'),
 (5, 'cacahuete', 'cacaca', 'cliente'),
 (6, 'ciruela', 'mbappe', 'cliente');
+
+-- --------------------------------------------------------
+-- Tabla `cupones` (códigos de descuento del carrito)
+-- --------------------------------------------------------
+
+CREATE TABLE `cupones` (
+  `codigo` varchar(30) NOT NULL PRIMARY KEY,
+  `porcentaje` int(10) UNSIGNED NOT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `cupones` (`codigo`, `porcentaje`, `activo`) VALUES
+('BIENVENIDA10', 10, 1),
+('VERANO20', 20, 1),
+('BLACKFRIDAY30', 30, 0);
 
 -- --------------------------------------------------------
 -- Índices

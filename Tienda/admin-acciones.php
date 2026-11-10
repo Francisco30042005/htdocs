@@ -56,6 +56,20 @@ function validar_foto_subida(array &$errores): ?string
     return $tipos[$info[2]];
 }
 
+/**
+ * Adónde ir después de iniciar sesión o registrarse:
+ * al carrito si se pulsó "Finalizar compra" sin sesión (el carrito se conserva),
+ * al panel si es administrador y a la tienda si es cliente.
+ */
+function obtener_destino_tras_entrar(): string
+{
+    if (!empty($_SESSION['volver_al_carrito'])) {
+        unset($_SESSION['volver_al_carrito']);
+        return 'index.php?p=carrito';
+    }
+    return 'index.php' . (es_admin() ? '?p=admin' : '');
+}
+
 /* --------------------------------------------------------------------------
    Iniciar y cerrar sesión (index.php?p=login)
    Un solo login para todos: los administradores van al panel
@@ -73,7 +87,7 @@ if ($pagina === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acc
     if ($usuario) {
         session_regenerate_id(true); // Nuevo id de sesión al entrar (evita robo de sesión)
         $_SESSION['usuario'] = $usuario;
-        header('Location: index.php' . ($usuario['rol'] === 'admin' ? '?p=admin' : ''));
+        header('Location: ' . obtener_destino_tras_entrar());
         exit;
     }
     $error_login = 'Usuario o contraseña incorrectos.';
@@ -87,8 +101,53 @@ if ($pagina === 'registro' && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['
     if (!$errores_registro) {
         session_regenerate_id(true);
         $_SESSION['usuario'] = ['id' => $conexion->insert_id, 'usuario' => $usuario_nuevo, 'rol' => 'cliente'];
-        header('Location: index.php');
+        header('Location: ' . obtener_destino_tras_entrar());
         exit;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Mi cuenta (index.php?p=mi-cuenta): datos personales y contraseña
+   -------------------------------------------------------------------------- */
+$mensaje_cuenta = '';
+if ($pagina === 'mi-cuenta') {
+    if (!tiene_sesion_iniciada()) {
+        header('Location: index.php?p=login');
+        exit;
+    }
+    $id_usuario = $_SESSION['usuario']['id'];
+
+    // Guardar mis datos
+    if (($_POST['accion_cuenta'] ?? '') === 'datos') {
+        $nombre = trim($_POST['nombre'] ?? '');
+        $direccion = trim($_POST['direccion'] ?? '');
+        $telefono = trim($_POST['telefono'] ?? '');
+        $stmt = $conexion->prepare("UPDATE usuarios SET nombre = ?, direccion = ?, telefono = ? WHERE id = ?");
+        $stmt->bind_param('sssi', $nombre, $direccion, $telefono, $id_usuario);
+        $stmt->execute();
+        $mensaje_cuenta = 'Datos guardados.';
+    }
+
+    // Cambiar contraseña
+    if (($_POST['accion_cuenta'] ?? '') === 'contrasena') {
+        $stmt = $conexion->prepare("SELECT contrasena FROM usuarios WHERE id = ?");
+        $stmt->bind_param('i', $id_usuario);
+        $stmt->execute();
+        $actual = $stmt->get_result()->fetch_assoc()['contrasena'];
+
+        $nueva = $_POST['nueva'] ?? '';
+        if (($_POST['actual'] ?? '') !== $actual) {
+            $mensaje_cuenta = 'La contraseña actual no es correcta.';
+        } elseif (strlen($nueva) < 6) {
+            $mensaje_cuenta = 'La nueva contraseña debe tener al menos 6 caracteres.';
+        } elseif ($nueva !== ($_POST['repetir'] ?? '')) {
+            $mensaje_cuenta = 'Las contraseñas nuevas no coinciden.';
+        } else {
+            $stmt = $conexion->prepare("UPDATE usuarios SET contrasena = ? WHERE id = ?");
+            $stmt->bind_param('si', $nueva, $id_usuario);
+            $stmt->execute();
+            $mensaje_cuenta = 'Contraseña cambiada.';
+        }
     }
 }
 
@@ -208,6 +267,28 @@ if ($pagina === 'admin') {
                     ? 'Ya existe un producto con la referencia ' . $d['referencia'] . '.'
                     : 'No se ha podido guardar el producto: ' . $conexion->error;
             }
+        } elseif ($_POST['accion_admin'] === 'crear_cupon') {
+            /* ---- Crear un cupón ---- */
+            $codigo = strtoupper(trim($_POST['codigo'] ?? ''));
+            $porcentaje = (int) ($_POST['porcentaje'] ?? 0);
+            if (!preg_match('/^[A-Z0-9]{3,30}$/', $codigo) || $porcentaje < 1 || $porcentaje > 100) {
+                $_SESSION['mensaje_admin'] = 'Cupón no creado: el código lleva de 3 a 30 letras o números y el descuento va de 1 a 100 %.';
+            } else {
+                $stmt = $conexion->prepare("INSERT INTO cupones (codigo, porcentaje) VALUES (?, ?)");
+                $stmt->bind_param('si', $codigo, $porcentaje);
+                $_SESSION['mensaje_admin'] = @$stmt->execute()
+                    ? "Cupón $codigo creado."
+                    : "Cupón no creado: ya existe el código $codigo.";
+            }
+            header('Location: index.php?p=admin&seccion=cupones');
+            exit;
+        } elseif ($_POST['accion_admin'] === 'cambiar_cupon') {
+            /* ---- Activar / desactivar un cupón ---- */
+            $stmt = $conexion->prepare("UPDATE cupones SET activo = NOT activo WHERE codigo = ?");
+            $stmt->bind_param('s', $_POST['codigo']);
+            $stmt->execute();
+            header('Location: index.php?p=admin&seccion=cupones');
+            exit;
         } elseif ($_POST['accion_admin'] === 'borrar') {
             /* ---- Borrar un producto ---- */
             $producto_borrar = obtener_producto_por_id($conexion, (int) ($_POST['id'] ?? 0));

@@ -15,6 +15,9 @@ mostrar_migas_de_pan([
         <div class="row px-xl-5">
             <div class="col-lg-5 col-md-8 mb-5">
                 <div class="bg-light p-30">
+                    <?php if (!empty($_SESSION['volver_al_carrito'])): ?>
+                        <div class="alert alert-info"><i class="fa fa-shopping-cart mr-1"></i> Crea tu cuenta para finalizar la compra. Tu carrito está guardado y volverás a él al registrarte.</div>
+                    <?php endif; ?>
                     <?php if ($errores_registro): ?>
                         <div class="alert alert-danger">
                             <ul class="mb-0 pl-3">

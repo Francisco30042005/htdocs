@@ -4,11 +4,15 @@
   Muestra los productos guardados en la sesión ($_SESSION['carrito']).
   Variables disponibles: $conexion, $pagina (index.php)
 */
-const GASTOS_ENVIO = 10; // Gastos de envío fijos
-
 $lineas = obtener_lineas_carrito($conexion);
 $subtotal = array_sum(array_column($lineas, 'total'));
+$porcentaje = obtener_descuento_total($conexion);
+$descuento = $subtotal * $porcentaje / 100;
 $envio = $lineas ? GASTOS_ENVIO : 0;
+
+// Resultado de "Finalizar compra" (se muestra una sola vez)
+$mensaje_carrito = $_SESSION['mensaje_carrito'] ?? null;
+unset($_SESSION['mensaje_carrito']);
 
 mostrar_migas_de_pan([
     'Inicio' => 'index.php',
@@ -18,6 +22,13 @@ mostrar_migas_de_pan([
 ?>
     <!-- Carrito Start -->
     <div class="container-fluid">
+        <?php if ($mensaje_carrito): ?>
+        <div class="row px-xl-5">
+            <div class="col">
+                <div class="alert alert-<?= $mensaje_carrito['ok'] ? 'success' : 'danger' ?>"><?= escapar_html($mensaje_carrito['texto']) ?></div>
+            </div>
+        </div>
+        <?php endif; ?>
         <?php if (!$lineas): ?>
         <div class="row px-xl-5">
             <div class="col">
@@ -32,7 +43,7 @@ mostrar_migas_de_pan([
         <?php else: ?>
         <div class="row px-xl-5">
             <div class="col-lg-8 table-responsive mb-5">
-                <form action="index.php?p=carrito" method="post">
+                <form id="form-carrito" action="index.php?p=carrito" method="post">
                     <input type="hidden" name="accion" value="actualizar">
                     <!-- Botón por defecto: al pulsar Intro en una cantidad se actualiza el carrito -->
                     <button type="submit" style="position: absolute; left: -9999px;" tabindex="-1" aria-hidden="true"></button>
@@ -87,11 +98,34 @@ mostrar_migas_de_pan([
             <div class="col-lg-4">
                 <h5 class="section-title position-relative text-uppercase mb-3"><span class="bg-secondary pr-3">Resumen del carrito</span></h5>
                 <div class="bg-light p-30 mb-5">
+                    <!-- Cupones aplicados (cada uno con su botón Quitar) -->
+                    <?php foreach ($_SESSION['cupones'] ?? [] as $codigo): ?>
+                        <form action="index.php?p=carrito" method="post" class="input-group mb-2">
+                            <input type="hidden" name="codigo" value="<?= escapar_html($codigo) ?>">
+                            <span class="form-control">Cupón <b><?= escapar_html($codigo) ?></b> (−<?= obtener_descuento_cupon($conexion, $codigo) ?> %)</span>
+                            <div class="input-group-append">
+                                <button type="submit" name="accion" value="quitar_cupon" class="btn btn-outline-dark">Quitar</button>
+                            </div>
+                        </form>
+                    <?php endforeach; ?>
+                    <!-- Añadir otro cupón -->
+                    <form action="index.php?p=carrito" method="post" class="input-group mb-3">
+                        <input type="text" name="codigo" class="form-control" placeholder="Código de descuento">
+                        <div class="input-group-append">
+                            <button type="submit" name="accion" value="aplicar_cupon" class="btn btn-primary">Aplicar</button>
+                        </div>
+                    </form>
                     <div class="border-bottom pb-2">
                         <div class="d-flex justify-content-between mb-3">
                             <h6>Subtotal</h6>
                             <h6><?= formatear_precio($subtotal) ?></h6>
                         </div>
+                        <?php if ($descuento > 0): ?>
+                        <div class="d-flex justify-content-between mb-3">
+                            <h6>Descuento (<?= $porcentaje ?> %)</h6>
+                            <h6>−<?= formatear_precio($descuento) ?></h6>
+                        </div>
+                        <?php endif; ?>
                         <div class="d-flex justify-content-between">
                             <h6 class="font-weight-medium">Envío</h6>
                             <h6 class="font-weight-medium"><?= formatear_precio($envio) ?></h6>
@@ -100,9 +134,17 @@ mostrar_migas_de_pan([
                     <div class="pt-2">
                         <div class="d-flex justify-content-between mt-2">
                             <h5>Total</h5>
-                            <h5><?= formatear_precio($subtotal + $envio) ?></h5>
+                            <h5><?= formatear_precio($subtotal - $descuento + $envio) ?></h5>
                         </div>
-                        <button class="btn btn-block btn-primary font-weight-bold my-3 py-3" type="button">Finalizar compra</button>
+                        <?php // Va unido al formulario del carrito (form="form-carrito") para guardar también las cantidades cambiadas ?>
+                        <?php if (tiene_sesion_iniciada()): ?>
+                            <button class="btn btn-block btn-primary font-weight-bold my-3 py-3" type="submit" form="form-carrito" name="accion" value="finalizar">Finalizar compra</button>
+                        <?php else: ?>
+                            <button class="btn btn-block btn-primary font-weight-bold mt-3 mb-2 py-3" type="submit" form="form-carrito" name="accion" value="finalizar">
+                                <i class="fa fa-sign-in-alt mr-1"></i> Inicia sesión para comprar
+                            </button>
+                            <p class="small text-center mb-0">Tu carrito se guardará mientras inicias sesión.</p>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
