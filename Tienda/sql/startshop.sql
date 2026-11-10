@@ -77,9 +77,24 @@ CREATE TABLE `productos` (
 INSERT INTO `productos` (`id`, `referencia`, `nombre`, `precio`, `precio_rebajado`, `existencias`, `descripcion`, `categoria_id`, `valoracion`) VALUES
 (1, 'COD-01', 'Zapatillas Nike', 69.99, NULL, 10, NULL, 1, 4.7),
 (2, 'COD-04', 'Camiseta', 15.00, NULL, 10, NULL, 2, 4.9),
-(3, 'COD-02', 'GTA 6', 99.99, 70.00, 10, NULL, 3, 4.0),
+(3, 'COD-02', 'GTA 6', 99.99, 70.00, 10, 'Grand Theft Auto VI para PlayStation 5. La saga vuelve a Vice City, en el estado de Leonida, con dos protagonistas: Lucia y Jason. Edición estándar en español. Para mayores de 18 años.', 3, 4.0),
 (4, 'COD-03', 'Balón de baloncesto', 49.99, 40.00, 10, NULL, 4, 4.3),
-(7, 'COD-05', 'GTA VI', 100.00, 3.00, 67, '', 3, 0.0);
+(7, 'COD-05', 'Consola PlayStation 5', 549.99, 499.99, 8, 'Consola PS5 con lector de discos, almacenamiento SSD ultrarrápido y mando inalámbrico DualSense incluido. Juega en 4K y hasta 120 fps.', 3, 4.8),
+(8, 'COD-06', 'Mochila deportiva urbana', 39.99, 29.99, 25, 'Mochila de 25 litros con compartimento acolchado para portátil de hasta 15,6 pulgadas, bolsillo trasero antirrobo y tejido repelente al agua. Ideal para el gimnasio, la universidad o el día a día.', 4, 4.5),
+(9, 'COD-07', 'Auriculares deportivos inalámbricos', 59.99, NULL, 18, 'Auriculares Bluetooth 5.3 de diseño abierto con gancho de oreja, resistentes al sudor (IPX5) y hasta 8 horas de música por carga. El estuche de carga ofrece 24 horas adicionales.', 4, 4.4),
+(10, 'COD-08', 'Gorra deportiva azul', 14.99, NULL, 40, 'Gorra de algodón con visera curva, ribete reflectante y cierre ajustable. Talla única.', 2, 4.2),
+(11, 'COD-09', 'Jersey de punto azul', 34.99, 24.99, 22, 'Jersey unisex de punto suave con cuello redondo y puños de canalé. 80 % algodón, 20 % poliéster. Disponible de la S a la XL.', 2, 4.6),
+(12, 'COD-10', 'Blusa negra con encaje', 29.95, NULL, 15, 'Blusa holgada de mangas amplias con detalle de encaje en hombros y escote con lazada. Tejido ligero y fluido.', 2, 4.3),
+(13, 'COD-11', 'Zapatillas infantiles Nike', 44.99, 35.99, 30, 'Zapatillas para niños con cierre de velcro, suela flexible y amortiguación ligera. Fáciles de poner y quitar. Tallas de la 25 a la 35.', 1, 4.8),
+(14, 'COD-12', 'Kit de cuidado facial 3 pasos', 32.50, NULL, 20, 'Rutina completa con limpiador suave, tratamiento y crema hidratante. Para todo tipo de pieles, sin parabenos ni perfume.', 5, 4.5),
+(15, 'COD-13', 'Reloj inteligente deportivo', 129.00, 99.00, 12, 'Smartwatch con pulsómetro, GPS, contador de pasos, notificaciones del móvil y correa de malla metálica. Hasta 2 días de batería y resistente al agua.', 4, 4.6),
+(16, 'COD-14', 'Botas de montaña impermeables', 89.90, NULL, 14, 'Botas de trekking de ante y tejido técnico con membrana impermeable y transpirable, suela de goma con tacos de agarre y puntera reforzada.', 1, 4.7),
+(17, 'COD-15', 'Mando inalámbrico para consola', 49.99, 39.99, 35, 'Mando inalámbrico ergonómico con vibración, batería recargable de 20 horas y conexión por Bluetooth o cable USB-C. Compatible con PC y consolas.', 3, 4.4),
+(18, 'COD-16', 'Auriculares gaming con micrófono', 54.99, NULL, 20, 'Auriculares de diadema con sonido envolvente 7.1, micrófono flexible con cancelación de ruido y almohadillas acolchadas para largas partidas.', 3, 4.5),
+(19, 'COD-17', 'Esterilla de yoga antideslizante', 24.99, 19.99, 28, 'Esterilla de 183 x 61 cm y 6 mm de grosor, antideslizante por ambas caras. Se enrolla fácilmente para llevarla a clase.', 4, 4.3),
+(20, 'COD-18', 'Gel de baño y ducha floral', 4.95, NULL, 60, 'Gel de baño y ducha con aroma floral y pH neutro que hidrata y respeta la piel. Botella de 500 ml.', 5, 4.1),
+(21, 'COD-19', 'Cepillo de dientes eléctrico recargable', 39.90, 29.90, 24, 'Cepillo sónico con 3 modos de limpieza, temporizador de 2 minutos y estuche de viaje. Carga por USB y batería de hasta 3 semanas.', 5, 4.6),
+(22, 'COD-20', 'Chanclas de playa', 12.99, NULL, 50, 'Chanclas ligeras con plantilla acolchada y tira suave que no roza. Perfectas para la playa y la piscina.', 1, 3.9);
 
 -- --------------------------------------------------------
 -- Tabla `usuarios`
@@ -123,7 +138,7 @@ ALTER TABLE `categorias`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 ALTER TABLE `productos`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 ALTER TABLE `usuarios`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;

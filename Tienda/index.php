@@ -149,7 +149,8 @@ function obtener_imagen_producto(array $producto, string $relleno = '600x600'): 
         foreach (['jpg', 'JPG', 'jpeg', 'png'] as $extension) {
             $ruta = 'img/' . $nombre . '.' . $extension;
             if ($nombre !== '' && file_exists(__DIR__ . '/' . $ruta)) {
-                return $ruta;
+                // ?v=fecha del archivo: si cambias la foto, el navegador no usa la antigua de la caché
+                return $ruta . '?v=' . filemtime(__DIR__ . '/' . $ruta);
             }
         }
     }
