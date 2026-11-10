@@ -28,8 +28,8 @@ require_once 'conexion.php';
     tiene_*     devuelve true / false
    ========================================================================== */
 
-// Símbolo de moneda que se muestra en los precios (cámbialo a '€' si lo prefieres)
-const MONEDA = '$';
+// Símbolo de moneda que se muestra en los precios
+const MONEDA = '€';
 
 // Valores permitidos en las cookies de preferencias
 const IDIOMAS = ['es', 'en'];
@@ -127,10 +127,10 @@ function tiene_precio_rebajado(array $producto): bool
     return !is_null($producto['precio_rebajado']) && $producto['precio_rebajado'] > 0;
 }
 
-/** Formatea un precio: $12.50 */
+/** Formatea un precio al estilo español: 1.234,50 € */
 function formatear_precio(float $valor): string
 {
-    return MONEDA . number_format($valor, 2);
+    return number_format($valor, 2, ',', '.') . ' ' . MONEDA;
 }
 
 /**
@@ -351,6 +351,159 @@ function obtener_clase_activo(bool $condicion): string
     return $condicion ? ' active' : '';
 }
 
+/* --------------------------------------------------------------------------
+   Usuarios y panel de administración
+   El usuario que ha iniciado sesión se guarda en $_SESSION['usuario']
+   = ['id' => 1, 'usuario' => 'admin', 'rol' => 'admin']
+   -------------------------------------------------------------------------- */
+
+/** true si hay un administrador con la sesión iniciada. */
+function es_admin(): bool
+{
+    return ($_SESSION['usuario']['rol'] ?? '') === 'admin';
+}
+
+/** true si hay alguien (cliente o admin) con la sesión iniciada. */
+function tiene_sesion_iniciada(): bool
+{
+    return isset($_SESSION['usuario']);
+}
+
+/**
+ * Comprueba usuario y contraseña (clientes y administradores usan el mismo login).
+ * Devuelve los datos del usuario, con su rol, o null.
+ * La contraseña se guarda en la base de datos tal cual (sin cifrar).
+ */
+function comprobar_login(mysqli $conexion, string $usuario, string $contrasena): ?array
+{
+    $stmt = $conexion->prepare("SELECT id, usuario, contrasena, rol FROM usuarios WHERE usuario = ?");
+    if (!$stmt) {
+        return null;
+    }
+    $stmt->bind_param('s', $usuario);
+    $stmt->execute();
+    $fila = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$fila || $contrasena !== $fila['contrasena']) {
+        return null;
+    }
+    unset($fila['contrasena']); // No guardamos la contraseña en la sesión
+    return $fila;
+}
+
+/**
+ * Token anti-CSRF: un código aleatorio guardado en la sesión que va oculto
+ * en los formularios del panel. Así otra web no puede enviar formularios
+ * en nombre del administrador.
+ */
+function obtener_token_csrf(): string
+{
+    if (empty($_SESSION['token_csrf'])) {
+        $_SESSION['token_csrf'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['token_csrf'];
+}
+
+/** true si el token enviado por el formulario es el de la sesión. */
+function tiene_token_csrf_valido(): bool
+{
+    return isset($_POST['token_csrf']) && hash_equals(obtener_token_csrf(), (string) $_POST['token_csrf']);
+}
+
+/**
+ * Botón con el icono de usuario (a la izquierda del carrito).
+ * Sin sesión: lleva al login. Con sesión: muestra el nombre del usuario.
+ * $color = clase del color del icono (text-primary en el menú oscuro, text-dark en móvil).
+ */
+function mostrar_boton_usuario(string $color): void
+{
+    if (tiene_sesion_iniciada()) {
+        ?>
+        <span class="btn px-0 ml-3" title="Sesión iniciada">
+            <i class="fas fa-user <?= $color ?>"></i>
+            <!-- "notranslate": el traductor de Google no cambia el nombre del usuario -->
+            <span class="notranslate <?= $color ?> ml-1" translate="no"><?= escapar_html($_SESSION['usuario']['usuario']) ?></span>
+        </span>
+        <?php
+    } else {
+        ?>
+        <a href="index.php?p=login" class="btn px-0 ml-3" title="Acceder">
+            <i class="fas fa-user <?= $color ?>"></i>
+        </a>
+        <?php
+    }
+}
+
+/**
+ * Crea una cuenta de cliente. Devuelve la lista de errores
+ * (vacía si se ha creado bien). La contraseña se guarda tal cual (sin cifrar).
+ */
+function registrar_usuario(mysqli $conexion, string $usuario, string $contrasena, string $repetir): array
+{
+    $errores = [];
+    if (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $usuario)) {
+        $errores[] = 'El usuario debe tener entre 3 y 50 caracteres: letras sin tildes, números, punto, guion o guion bajo.';
+    }
+    if (strlen($contrasena) < 6) {
+        $errores[] = 'La contraseña debe tener al menos 6 caracteres.';
+    }
+    if ($contrasena !== $repetir) {
+        $errores[] = 'Las dos contraseñas no coinciden.';
+    }
+    if ($errores) {
+        return $errores;
+    }
+
+    // Los clientes nuevos siempre tienen rol 'cliente' (los admins se crean en phpMyAdmin)
+    $stmt = $conexion->prepare("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?, ?, 'cliente')");
+    if (!$stmt) {
+        return ['No se ha podido crear la cuenta: ' . $conexion->error];
+    }
+    $stmt->bind_param('ss', $usuario, $contrasena);
+    if (!$stmt->execute()) {
+        // 1062 = valor repetido en una columna UNIQUE (el usuario ya existe)
+        $errores[] = $conexion->errno === 1062
+            ? 'Ese nombre de usuario ya está en uso. Elige otro.'
+            : 'No se ha podido crear la cuenta: ' . $conexion->error;
+    }
+    $stmt->close();
+    return $errores;
+}
+
+/** Lista de categorías ordenadas por nombre. */
+function obtener_categorias(mysqli $conexion): array
+{
+    $resultado = $conexion->query("SELECT id, nombre FROM categorias ORDER BY nombre");
+    return $resultado ? $resultado->fetch_all(MYSQLI_ASSOC) : [];
+}
+
+/** Productos con el nombre de su categoría y sus existencias (para el panel). */
+function obtener_productos_admin(mysqli $conexion): array
+{
+    $resultado = $conexion->query(
+        "SELECT p.id, p.referencia, p.nombre, p.descripcion, p.precio, p.precio_rebajado,
+                p.existencias, p.categoria_id, c.nombre AS categoria
+         FROM productos p
+         LEFT JOIN categorias c ON c.id = p.categoria_id
+         ORDER BY p.referencia"
+    );
+    return $resultado ? $resultado->fetch_all(MYSQLI_ASSOC) : [];
+}
+
+/**
+ * Siguiente referencia libre con el formato COD-xx
+ * (si la mayor es COD-04, devuelve COD-05).
+ */
+function generar_siguiente_referencia(mysqli $conexion): string
+{
+    $resultado = $conexion->query(
+        "SELECT MAX(CAST(SUBSTRING(referencia, 5) AS UNSIGNED)) AS mayor
+         FROM productos WHERE referencia REGEXP '^COD-[0-9]+$'"
+    );
+    $mayor = $resultado ? (int) $resultado->fetch_assoc()['mayor'] : 0;
+    return 'COD-' . str_pad((string) ($mayor + 1), 2, '0', STR_PAD_LEFT);
+}
+
 /* ======================= FIN DE LAS FUNCIONES ============================= */
 
 // Cambio de modo claro/oscuro o de idioma (llega por la URL: ?tema=oscuro, ?idioma=en)
@@ -385,6 +538,10 @@ if (isset($_GET['tema']) || isset($_GET['idioma'])) {
     header('Location: index.php' . ($parametros ? '?' . http_build_query($parametros) : ''));
     exit;
 }
+
+// Inicio y cierre de sesión, y acciones del panel de administración.
+// Van antes que el carrito porque pueden redirigir (header) antes de pintar la página.
+require 'admin-acciones.php';
 
 // Acciones del carrito (llegan por POST desde los botones "Añadir al carrito" y la página del carrito)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
@@ -421,6 +578,9 @@ $titulos = [
     'informacion-producto' => 'Producto',
     'solicitud-recibida'   => 'Mensaje enviado',
     'carrito'              => 'Carrito',
+    'login'                => 'Acceder',
+    'registro'             => 'Crear cuenta',
+    'admin'                => 'Administración',
 ];
 $titulo = $titulos[$pagina] ?? 'Página no encontrada';
 
@@ -484,6 +644,7 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
                     </div>
                 </div>
                 <div class="d-inline-flex align-items-center d-block d-lg-none">
+                    <?php mostrar_boton_usuario('text-dark'); ?>
                     <a href="index.php?p=carrito" class="btn px-0 ml-3" title="Carrito">
                         <i class="fas fa-shopping-cart text-dark"></i>
                         <span class="badge text-dark border border-dark rounded-circle" style="padding-bottom: 2px;"><?= contar_unidades_carrito() ?></span>
@@ -557,8 +718,21 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
                                     <a href="index.php?p=rebajados" class="dropdown-item">Rebajados</a>
                                 </div>
                             </div>
+                            <?php if (es_admin()): ?>
+                                <!-- El panel solo aparece en el menú para los administradores -->
+                                <a href="index.php?p=admin" class="nav-item nav-link<?= obtener_clase_activo($pagina === 'admin') ?>">Administración</a>
+                            <?php endif; ?>
+                            <?php if (tiene_sesion_iniciada()): ?>
+                                <!-- Cerrar sesión va por POST (con token) para que un simple enlace no pueda cerrarla -->
+                                <form class="nav-item d-flex align-items-center" action="index.php?p=login" method="post">
+                                    <input type="hidden" name="accion_sesion" value="salir">
+                                    <input type="hidden" name="token_csrf" value="<?= escapar_html(obtener_token_csrf()) ?>">
+                                    <button type="submit" class="btn btn-primary btn-sm ml-lg-2 my-2 my-lg-0">Cerrar sesión</button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                         <div class="navbar-nav ml-auto py-0 d-none d-lg-block">
+                            <?php mostrar_boton_usuario('text-primary'); ?>
                             <a href="index.php?p=carrito" class="btn px-0 ml-3" title="Carrito">
                                 <i class="fas fa-shopping-cart text-primary"></i>
                                 <span class="badge text-secondary border border-secondary rounded-circle" style="padding-bottom: 2px;"><?= contar_unidades_carrito() ?></span>
@@ -593,6 +767,15 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
             break;
         case 'carrito':
             include 'carrito.php';
+            break;
+        case 'login':
+            include 'login.php';
+            break;
+        case 'registro':
+            include 'registro.php';
+            break;
+        case 'admin':
+            include 'admin.php';
             break;
         default:
             include 'error-404.php';
