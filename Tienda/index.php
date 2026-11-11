@@ -803,7 +803,7 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
                             <a href="index.php" class="nav-item nav-link<?= obtener_clase_activo($pagina === null) ?>">Inicio</a>
                             <a href="index.php?p=conocenos" class="nav-item nav-link<?= obtener_clase_activo($pagina === 'conocenos') ?>">Conócenos</a>
                             <div class="nav-item dropdown">
-                                <a href="#" class="nav-link dropdown-toggle<?= obtener_clase_activo(in_array($pagina, ['tienda', 'rebajados', 'informacion-producto'], true)) ?>" data-toggle="dropdown">Tienda <i class="fa fa-angle-down mt-1"></i></a>
+                                <a href="#" class="nav-link dropdown-toggle<?= obtener_clase_activo(in_array($pagina, ['tienda', 'rebajados', 'informacion-producto'], true)) ?>" data-toggle="dropdown">Tienda<i class="fa fa-angle-down mt-1 ml-1"></i></a>
                                 <div class="dropdown-menu bg-primary rounded-0 border-0 m-0">
                                     <a href="index.php?p=tienda" class="dropdown-item">Productos</a>
                                     <div class="dropdown-divider"></div>
