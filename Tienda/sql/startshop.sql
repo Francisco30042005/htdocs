@@ -41,6 +41,7 @@ DROP TABLE IF EXISTS `productos`;
 DROP TABLE IF EXISTS `categorias`;
 DROP TABLE IF EXISTS `usuarios`;
 DROP TABLE IF EXISTS `cupones`;
+DROP TABLE IF EXISTS `resenas`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- --------------------------------------------------------
@@ -161,6 +162,71 @@ ALTER TABLE `productos`
 
 ALTER TABLE `usuarios`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+-- --------------------------------------------------------
+-- Tabla `resenas` (opiniones de los clientes: 1 a 5 estrellas y texto opcional)
+-- Cada usuario puede dejar una reseña por producto.
+-- --------------------------------------------------------
+
+CREATE TABLE `resenas` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `producto_id` int(10) UNSIGNED NOT NULL,
+  `usuario_id` int(10) UNSIGNED NOT NULL,
+  `puntuacion` tinyint(3) UNSIGNED NOT NULL,
+  `comentario` text DEFAULT NULL,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  UNIQUE KEY `una_por_usuario` (`producto_id`, `usuario_id`),
+  CONSTRAINT `fk_resenas_producto` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_resenas_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `resenas` (`producto_id`, `usuario_id`, `puntuacion`, `comentario`, `fecha`) VALUES
+(1, 2, 5, 'Muy cómodas, las uso a diario.', '2026-10-08 14:13:00'),
+(1, 5, 5, NULL, '2026-10-15 19:26:00'),
+(1, 6, 4, 'Buena calidad, aunque tallan un poco grandes.', '2026-10-22 12:39:00'),
+(2, 2, 5, 'Tejido muy fresco, ideal para correr.', '2026-10-29 17:52:00'),
+(2, 6, 5, 'Perfecta, repetiré.', '2026-11-05 10:05:00'),
+(3, 5, 4, 'Gran juego, la historia engancha desde el principio.', '2026-10-03 15:18:00'),
+(3, 6, 4, NULL, '2026-10-10 20:31:00'),
+(4, 2, 4, 'Bota muy bien en la pista exterior.', '2026-10-17 13:44:00'),
+(4, 5, 5, NULL, '2026-10-24 18:57:00'),
+(4, 6, 4, NULL, '2026-10-31 11:10:00'),
+(7, 2, 5, 'Rapidísima, los juegos cargan al momento.', '2026-11-07 16:23:00'),
+(7, 6, 5, 'El mando DualSense es una pasada.', '2026-10-05 09:36:00'),
+(8, 5, 4, 'Caben el portátil y la ropa del gimnasio sin problema.', '2026-10-12 14:49:00'),
+(8, 6, 5, NULL, '2026-10-19 19:02:00'),
+(9, 2, 4, 'Se sujetan bien al correr y la batería cumple.', '2026-10-26 12:15:00'),
+(9, 5, 5, NULL, '2026-11-02 17:28:00'),
+(10, 6, 4, 'Bonita y se ajusta bien.', '2026-11-09 10:41:00'),
+(10, 2, 4, NULL, '2026-10-07 15:54:00'),
+(11, 5, 5, 'Muy suave y abriga mucho.', '2026-10-14 20:07:00'),
+(11, 6, 4, NULL, '2026-10-21 13:20:00'),
+(12, 6, 4, 'Queda muy bien, el encaje es precioso.', '2026-10-28 18:33:00'),
+(12, 5, 5, NULL, '2026-11-04 11:46:00'),
+(13, 2, 5, 'Mi hijo se las pone solo gracias al velcro.', '2026-10-02 16:59:00'),
+(13, 6, 5, NULL, '2026-10-09 09:12:00'),
+(14, 5, 4, 'Deja la piel muy suave. Buen precio.', '2026-10-16 14:25:00'),
+(14, 6, 5, NULL, '2026-10-23 19:38:00'),
+(15, 2, 5, 'El GPS es muy preciso y la batería aguanta bien.', '2026-10-30 12:51:00'),
+(15, 5, 4, 'Buena relación calidad-precio.', '2026-11-06 17:04:00'),
+(16, 6, 5, 'Probadas con lluvia y no entra nada de agua.', '2026-10-04 10:17:00'),
+(16, 2, 5, NULL, '2026-10-11 15:30:00'),
+(16, 5, 4, NULL, '2026-10-18 20:43:00'),
+(17, 5, 4, 'Cómodo para jugar horas. En el PC funcionó sin instalar nada.', '2026-10-25 13:56:00'),
+(17, 6, 5, NULL, '2026-11-01 18:09:00'),
+(18, 2, 5, 'Se oyen perfectamente los pasos en los juegos.', '2026-11-08 11:22:00'),
+(18, 6, 4, 'El micrófono podría ser algo mejor.', '2026-10-06 16:35:00'),
+(19, 6, 4, 'Buen agarre, no resbala nada.', '2026-10-13 09:48:00'),
+(19, 5, 5, NULL, '2026-10-20 14:01:00'),
+(20, 2, 4, 'Huele muy bien y dura bastante.', '2026-10-27 19:14:00'),
+(20, 5, 4, NULL, '2026-11-03 12:27:00'),
+(21, 6, 5, 'Los dientes quedan mucho más limpios que con el manual.', '2026-10-01 17:40:00'),
+(21, 2, 4, NULL, '2026-10-08 10:53:00'),
+(22, 5, 4, 'Cómodas para la piscina.', '2026-10-15 15:06:00'),
+(22, 6, 3, 'Rozan un poco los primeros días.', '2026-10-22 20:19:00');
+
+-- La valoración de cada producto es la media de sus reseñas
+UPDATE `productos` SET `valoracion` = COALESCE((SELECT ROUND(AVG(`puntuacion`), 1) FROM `resenas` WHERE `resenas`.`producto_id` = `productos`.`id`), 0);
 
 -- --------------------------------------------------------
 -- Clave foránea productos -> categorias

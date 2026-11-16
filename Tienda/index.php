@@ -12,6 +12,14 @@ $busqueda = trim($_GET['q'] ?? '');
 // Conexión con la bbdd
 require_once 'conexion.php';
 
+// Clave de Stripe para los pagos con tarjeta (ver config-stripe.php)
+if (is_file(__DIR__ . '/config-stripe.php')) {
+    require_once __DIR__ . '/config-stripe.php';
+}
+if (!defined('STRIPE_CLAVE_SECRETA')) {
+    define('STRIPE_CLAVE_SECRETA', '');
+}
+
 /* ==========================================================================
    FUNCIONES DE LA TIENDA
    Las usan index.php y las secciones que incluye (inicio, tienda, ficha de
@@ -48,7 +56,7 @@ const TEMAS = ['claro', 'oscuro'];
  * @param int|null    $excluir_id Id de producto que no queremos que aparezca
  * @return array Lista de productos (arrays asociativos)
  */
-function obtener_productos(mysqli $conexion, bool $rebajados = false, ?string $busqueda = null, ?int $limite = null, ?int $excluir_id = null): array
+function obtener_productos(mysqli $conexion, bool $rebajados = false, ?string $busqueda = null, ?int $limite = null, ?int $excluir_id = null, ?int $categoria_id = null): array
 {
     $sql = "SELECT id, referencia, nombre, precio, precio_rebajado, descripcion, valoracion
             FROM productos";
@@ -69,6 +77,11 @@ function obtener_productos(mysqli $conexion, bool $rebajados = false, ?string $b
         $condiciones[] = "id <> ?";
         $tipos .= 'i';
         $valores[] = $excluir_id;
+    }
+    if ($categoria_id !== null) {
+        $condiciones[] = "categoria_id = ?";
+        $tipos .= 'i';
+        $valores[] = $categoria_id;
     }
     if ($condiciones) {
         $sql .= " WHERE " . implode(' AND ', $condiciones);
@@ -95,7 +108,7 @@ function obtener_productos(mysqli $conexion, bool $rebajados = false, ?string $b
 /** Devuelve un producto por su id, o null si no existe. */
 function obtener_producto_por_id(mysqli $conexion, int $id): ?array
 {
-    $stmt = $conexion->prepare("SELECT id, referencia, nombre, precio, precio_rebajado, descripcion, valoracion
+    $stmt = $conexion->prepare("SELECT id, referencia, nombre, precio, precio_rebajado, descripcion, valoracion, existencias
                                 FROM productos WHERE id = ?");
     if (!$stmt) {
         return null;
@@ -316,6 +329,120 @@ function obtener_lineas_carrito(mysqli $conexion): array
         ];
     }
     return $lineas;
+}
+
+/* ------------------------------------------------------------------
+   Pago con Stripe Checkout
+   El cliente paga en la página de Stripe y vuelve a index.php?p=pago-completado
+   ------------------------------------------------------------------ */
+
+/**
+ * Llama a la API de Stripe (sin librerías) y devuelve la respuesta como array.
+ * Si algo falla, la respuesta trae ['error' => ['message' => ...]].
+ */
+function llamar_stripe(string $metodo, string $ruta, array $datos = []): array
+{
+    $contexto = stream_context_create(['http' => [
+        'method'        => $metodo,
+        'header'        => "Authorization: Bearer " . STRIPE_CLAVE_SECRETA . "\r\n"
+                         . "Content-Type: application/x-www-form-urlencoded\r\n",
+        'content'       => http_build_query($datos),
+        'ignore_errors' => true,   // para poder leer también los mensajes de error de Stripe
+        'timeout'       => 20,
+    ]]);
+    $respuesta = @file_get_contents('https://api.stripe.com/v1/' . $ruta, false, $contexto);
+    if ($respuesta === false) {
+        return ['error' => ['message' => 'No se ha podido conectar con Stripe.']];
+    }
+    return json_decode($respuesta, true) ?? ['error' => ['message' => 'Respuesta de Stripe no válida.']];
+}
+
+/**
+ * Crea el pago en Stripe con los productos del carrito (con el descuento de los cupones)
+ * y los gastos de envío. Devuelve ['url' => página de pago] o ['error' => mensaje].
+ */
+function crear_pago_stripe(mysqli $conexion): array
+{
+    $lineas = obtener_lineas_carrito($conexion);
+    if (!$lineas) {
+        return ['error' => 'Tu carrito está vacío.'];
+    }
+    // Antes de cobrar, comprobamos que hay unidades de todo
+    foreach ($lineas as $linea) {
+        if ($linea['cantidad'] > (int) $linea['producto']['existencias']) {
+            return ['error' => 'No hay unidades suficientes de «' . $linea['producto']['nombre'] . '» (quedan '
+                . (int) $linea['producto']['existencias'] . '). Cambia la cantidad y vuelve a intentarlo.'];
+        }
+    }
+
+    $porcentaje = obtener_descuento_total($conexion);
+    $productos_stripe = [];
+    foreach ($lineas as $linea) {
+        $precio = $linea['precio'] - $linea['precio'] * $porcentaje / 100;
+        $productos_stripe[] = [
+            'price_data' => [
+                'currency'     => 'eur',
+                'unit_amount'  => (int) round($precio * 100),   // Stripe trabaja en céntimos
+                'product_data' => ['name' => $linea['producto']['nombre'] . ($porcentaje ? " (−$porcentaje % con cupón)" : '')],
+            ],
+            'quantity' => $linea['cantidad'],
+        ];
+    }
+    $productos_stripe[] = [
+        'price_data' => ['currency' => 'eur', 'unit_amount' => GASTOS_ENVIO * 100, 'product_data' => ['name' => 'Gastos de envío']],
+        'quantity'   => 1,
+    ];
+
+    // Dirección de la tienda (p. ej. http://localhost/Tienda/) para volver desde Stripe
+    $web = (empty($_SERVER['HTTPS']) ? 'http' : 'https') . '://' . $_SERVER['HTTP_HOST']
+         . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
+
+    $pago = llamar_stripe('POST', 'checkout/sessions', [
+        'mode'        => 'payment',
+        'locale'      => 'es',
+        'line_items'  => $productos_stripe,
+        'success_url' => $web . 'index.php?p=pago-completado&session_id={CHECKOUT_SESSION_ID}',
+        'cancel_url'  => $web . 'index.php?p=carrito',
+        'metadata'    => ['usuario' => $_SESSION['usuario']['usuario']],
+    ]);
+    if (isset($pago['error'])) {
+        return ['error' => 'No se ha podido iniciar el pago: ' . $pago['error']['message']];
+    }
+    $_SESSION['pago_stripe'] = $pago['id'];   // para comprobarlo cuando el cliente vuelva
+    return ['url' => $pago['url']];
+}
+
+/* ------------------------------------------------------------------
+   Reseñas de los productos (1 a 5 estrellas y comentario opcional)
+   ------------------------------------------------------------------ */
+
+/** Reseñas de un producto, de la más reciente a la más antigua. */
+function obtener_resenas(mysqli $conexion, int $producto_id): array
+{
+    $stmt = $conexion->prepare("SELECT r.usuario_id, u.usuario, r.puntuacion, r.comentario, r.fecha
+                                FROM resenas r JOIN usuarios u ON u.id = r.usuario_id
+                                WHERE r.producto_id = ? ORDER BY r.fecha DESC");
+    $stmt->bind_param('i', $producto_id);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Guarda la reseña del usuario (si ya tenía una, la cambia)
+ * y actualiza la valoración media del producto.
+ */
+function guardar_resena(mysqli $conexion, int $producto_id, int $usuario_id, int $puntuacion, ?string $comentario): void
+{
+    $stmt = $conexion->prepare("INSERT INTO resenas (producto_id, usuario_id, puntuacion, comentario) VALUES (?, ?, ?, ?)
+                                ON DUPLICATE KEY UPDATE puntuacion = VALUES(puntuacion), comentario = VALUES(comentario), fecha = NOW()");
+    $stmt->bind_param('iiis', $producto_id, $usuario_id, $puntuacion, $comentario);
+    $stmt->execute();
+
+    $stmt = $conexion->prepare("UPDATE productos
+                                SET valoracion = (SELECT ROUND(AVG(puntuacion), 1) FROM resenas WHERE producto_id = ?)
+                                WHERE id = ?");
+    $stmt->bind_param('ii', $producto_id, $producto_id);
+    $stmt->execute();
 }
 
 /** Devuelve el % de descuento del cupón, o 0 si no existe o no está activo. */
@@ -539,7 +666,10 @@ function registrar_usuario(mysqli $conexion, string $usuario, string $contrasena
 /** Lista de categorías ordenadas por nombre. */
 function obtener_categorias(mysqli $conexion): array
 {
-    $resultado = $conexion->query("SELECT id, nombre FROM categorias ORDER BY nombre");
+    // "total" = número de productos de cada categoría
+    $resultado = $conexion->query("SELECT c.id, c.nombre, COUNT(p.id) AS total
+                                   FROM categorias c LEFT JOIN productos p ON p.categoria_id = c.id
+                                   GROUP BY c.id, c.nombre ORDER BY c.nombre");
     return $resultado ? $resultado->fetch_all(MYSQLI_ASSOC) : [];
 }
 
@@ -605,9 +735,9 @@ if (isset($_GET['tema']) || isset($_GET['idioma'])) {
     exit;
 }
 
-// Inicio y cierre de sesión, y acciones del panel de administración.
-// Van antes que el carrito porque pueden redirigir (header) antes de pintar la página.
-require 'admin-acciones.php';
+// Inicio y cierre de sesión, Mi cuenta y panel de administración (todo en admin.php).
+// Va antes que el carrito porque puede redirigir (header) antes de pintar la página.
+require 'admin.php';
 
 // Acciones del carrito (llegan por POST desde los botones "Añadir al carrito" y la página del carrito)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
@@ -635,7 +765,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
                     header('Location: index.php?p=login');
                     exit;
                 }
-                $_SESSION['mensaje_carrito'] = finalizar_compra($conexion);
+                if (STRIPE_CLAVE_SECRETA === '') {
+                    $_SESSION['mensaje_carrito'] = ['ok' => false, 'texto' => 'El pago con tarjeta no está configurado: copia config-stripe.ejemplo.php como config-stripe.php y pon tu clave de Stripe.'];
+                    break;
+                }
+                // Se crea el pago en Stripe y el cliente va a pagar a su página
+                $pago = crear_pago_stripe($conexion);
+                if (isset($pago['url'])) {
+                    header('Location: ' . $pago['url']);
+                    exit;
+                }
+                $_SESSION['mensaje_carrito'] = ['ok' => false, 'texto' => $pago['error']];
             }
             break;
         case 'vaciar':
@@ -657,6 +797,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
     }
     // Redirigimos para que al recargar la página no se repita la acción
     header('Location: index.php?p=carrito');
+    exit;
+}
+
+// Vuelta desde Stripe después de pagar (index.php?p=pago-completado&session_id=...)
+// Se pregunta a Stripe si el pago está hecho; solo entonces se descuenta el stock y se vacía el carrito.
+if ($pagina === 'pago-completado') {
+    $id_pago = $_GET['session_id'] ?? '';
+    if ($id_pago !== '' && $id_pago === ($_SESSION['pago_stripe'] ?? '')) {
+        $pago = llamar_stripe('GET', 'checkout/sessions/' . urlencode($id_pago));
+        if (($pago['payment_status'] ?? '') === 'paid') {
+            unset($_SESSION['pago_stripe']);   // así el mismo pago no se procesa dos veces
+            $resultado = finalizar_compra($conexion);
+            $_SESSION['mensaje_carrito'] = $resultado['ok']
+                ? ['ok' => true, 'texto' => '¡Pago recibido! Gracias por tu compra, ' . $_SESSION['usuario']['usuario']
+                    . '. Se han cobrado ' . formatear_precio($pago['amount_total'] / 100) . ' (envío incluido).']
+                : ['ok' => false, 'texto' => 'Hemos recibido tu pago, pero ' . lcfirst($resultado['texto'])
+                    . ' Contacta con nosotros y te devolveremos el dinero.'];
+        } else {
+            $_SESSION['mensaje_carrito'] = ['ok' => false, 'texto' => 'El pago no se ha completado. Tu carrito sigue guardado.'];
+        }
+    }
+    header('Location: index.php?p=carrito');
+    exit;
+}
+
+// Reseña de un producto (llega por POST desde la ficha del producto)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion_resena'])) {
+    if (!tiene_sesion_iniciada()) {
+        header('Location: index.php?p=login');
+        exit;
+    }
+    $id_resena = (int) ($_POST['producto_id'] ?? 0);
+    $puntuacion = (int) ($_POST['puntuacion'] ?? 0);
+    $comentario = trim($_POST['comentario'] ?? '');
+    if ($puntuacion >= 1 && $puntuacion <= 5 && obtener_producto_por_id($conexion, $id_resena)) {
+        guardar_resena($conexion, $id_resena, (int) $_SESSION['usuario']['id'], $puntuacion, $comentario === '' ? null : mb_substr($comentario, 0, 1000));
+        $_SESSION['mensaje_resena'] = '¡Gracias! Tu reseña se ha guardado.';
+    }
+    header('Location: index.php?p=informacion-producto&id=' . $id_resena . '#resenas');
     exit;
 }
 
@@ -756,7 +935,8 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
                 <form action="index.php" method="get">
                     <input type="hidden" name="p" value="tienda">
                     <div class="input-group">
-                        <input type="text" name="q" class="form-control" placeholder="Buscar productos" value="<?= escapar_html($busqueda) ?>">
+                        <input type="text" name="q" class="form-control buscador-productos" placeholder="Buscar productos" value="<?= escapar_html($busqueda) ?>"
+                               autocomplete="off">
                         <div class="input-group-append">
                             <button type="submit" class="input-group-text bg-transparent text-primary" title="Buscar">
                                 <i class="fa fa-search"></i>
@@ -786,6 +966,9 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
                     <div class="navbar-nav w-100">
                         <a href="index.php?p=tienda" class="nav-item nav-link">Productos</a>
                         <a href="index.php?p=rebajados" class="nav-item nav-link">Rebajados</a>
+                        <?php foreach (obtener_categorias($conexion) as $categoria_menu): ?>
+                            <a href="index.php?p=tienda&amp;categoria=<?= (int) $categoria_menu['id'] ?>" class="nav-item nav-link"><?= escapar_html($categoria_menu['nombre']) ?></a>
+                        <?php endforeach; ?>
                     </div>
                 </nav>
             </div>
@@ -813,14 +996,6 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
                             <?php if (es_admin()): ?>
                                 <!-- El panel solo aparece en el menú para los administradores -->
                                 <a href="index.php?p=admin" class="nav-item nav-link<?= obtener_clase_activo($pagina === 'admin') ?>">Administración</a>
-                            <?php endif; ?>
-                            <?php if (tiene_sesion_iniciada()): ?>
-                                <!-- Cerrar sesión va por POST (con token) para que un simple enlace no pueda cerrarla -->
-                                <form class="nav-item d-flex align-items-center" action="index.php?p=login" method="post">
-                                    <input type="hidden" name="accion_sesion" value="salir">
-                                    <input type="hidden" name="token_csrf" value="<?= escapar_html(obtener_token_csrf()) ?>">
-                                    <button type="submit" class="btn btn-primary btn-sm ml-lg-2 my-2 my-lg-0">Cerrar sesión</button>
-                                </form>
                             <?php endif; ?>
                         </div>
                         <div class="navbar-nav ml-auto py-0 d-none d-lg-block">
@@ -870,7 +1045,7 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
             include 'registro.php';
             break;
         case 'admin':
-            include 'admin.php';
+            mostrar_panel_admin();
             break;
         default:
             include 'error-404.php';
@@ -939,6 +1114,21 @@ if ($pagina !== null && !isset($titulos[$pagina])) {
 
     <!-- Template Javascript -->
     <script src="js/main.js"></script>
+
+    <!-- Autocompletado del buscador: lista de productos para js/buscador.js -->
+    <?php
+    $productos_buscador = [];
+    foreach (obtener_productos($conexion) as $producto_buscador) {
+        $productos_buscador[] = [
+            'nombre' => $producto_buscador['nombre'],
+            'url'    => obtener_url_producto($producto_buscador),
+            'imagen' => obtener_imagen_producto($producto_buscador, '100x100'),
+            'precio' => formatear_precio(calcular_precio_final($producto_buscador)),
+        ];
+    }
+    ?>
+    <script>const PRODUCTOS_BUSCADOR = <?= json_encode($productos_buscador, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;</script>
+    <script src="js/buscador.js?v=<?= filemtime(__DIR__ . '/js/buscador.js') ?>"></script>
 
     <?php if (obtener_idioma_actual() === 'en'): ?>
     <!-- Traducción automática de toda la página con Google Translate.

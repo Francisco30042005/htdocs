@@ -4,12 +4,23 @@
   Variables disponibles: $conexion, $pagina, $busqueda (index.php)
 */
 $solo_rebajados = ($pagina === 'rebajados');
-$productos = obtener_productos($conexion, $solo_rebajados, $busqueda);
+
+// Categoría elegida (index.php?p=tienda&categoria=3)
+$categorias = obtener_categorias($conexion);
+$categoria_id = (int) ($_GET['categoria'] ?? 0);
+$categoria_actual = null;
+foreach ($categorias as $categoria) {
+    if ((int) $categoria['id'] === $categoria_id) {
+        $categoria_actual = $categoria;
+    }
+}
+
+$productos = obtener_productos($conexion, $solo_rebajados, $busqueda, null, null, $categoria_actual ? $categoria_id : null);
 
 $total_todos = contar_productos($conexion);
 $total_rebajados = contar_productos($conexion, true);
 
-$nombre_seccion = $solo_rebajados ? 'Rebajados' : 'Productos';
+$nombre_seccion = $categoria_actual['nombre'] ?? ($solo_rebajados ? 'Rebajados' : 'Productos');
 
 mostrar_migas_de_pan([
     'Inicio' => 'index.php',
@@ -24,7 +35,7 @@ mostrar_migas_de_pan([
             <div class="col-lg-3 col-md-4">
                 <h5 class="section-title position-relative text-uppercase mb-3"><span class="bg-secondary pr-3">Secciones</span></h5>
                 <div class="bg-light p-4 mb-30">
-                    <a href="index.php?p=tienda" class="d-flex align-items-center justify-content-between mb-3 text-decoration-none <?= $solo_rebajados ? 'text-body' : 'text-primary font-weight-bold' ?>">
+                    <a href="index.php?p=tienda" class="d-flex align-items-center justify-content-between mb-3 text-decoration-none <?= $solo_rebajados || $categoria_actual ? 'text-body' : 'text-primary font-weight-bold' ?>">
                         <span>Todos los productos</span>
                         <span class="badge border font-weight-normal"><?= $total_todos ?></span>
                     </a>
@@ -34,12 +45,28 @@ mostrar_migas_de_pan([
                     </a>
                 </div>
 
+                <h5 class="section-title position-relative text-uppercase mb-3"><span class="bg-secondary pr-3">Categorías</span></h5>
+                <div class="bg-light p-4 mb-30">
+                    <?php foreach ($categorias as $categoria): ?>
+                        <?php $activa = $categoria_actual && (int) $categoria['id'] === $categoria_id; ?>
+                        <a href="index.php?p=tienda&amp;categoria=<?= (int) $categoria['id'] ?>" class="d-flex align-items-center justify-content-between mb-3 text-decoration-none <?= $activa ? 'text-primary font-weight-bold' : 'text-body' ?>">
+                            <span><?= escapar_html($categoria['nombre']) ?></span>
+                            <span class="badge border font-weight-normal"><?= (int) $categoria['total'] ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+
                 <h5 class="section-title position-relative text-uppercase mb-3"><span class="bg-secondary pr-3">Buscar</span></h5>
                 <div class="bg-light p-4 mb-30">
                     <form action="index.php" method="get">
                         <input type="hidden" name="p" value="<?= escapar_html($solo_rebajados ? 'rebajados' : 'tienda') ?>">
+                        <?php if ($categoria_actual): ?>
+                            <!-- Busca dentro de la categoría elegida -->
+                            <input type="hidden" name="categoria" value="<?= $categoria_id ?>">
+                        <?php endif; ?>
                         <div class="input-group">
-                            <input type="text" name="q" class="form-control" placeholder="Nombre o referencia" value="<?= escapar_html($busqueda) ?>">
+                            <input type="text" name="q" class="form-control buscador-productos" placeholder="Nombre o referencia" value="<?= escapar_html($busqueda) ?>"
+                                   autocomplete="off">
                             <div class="input-group-append">
                                 <button type="submit" class="btn btn-primary" title="Buscar"><i class="fa fa-search"></i></button>
                             </div>

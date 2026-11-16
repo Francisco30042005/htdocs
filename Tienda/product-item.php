@@ -32,6 +32,17 @@ mostrar_migas_de_pan([
         $detalle_rebajado = tiene_precio_rebajado($producto_detalle);
         $detalle_imagen = obtener_imagen_producto($producto_detalle, '600x700');
         $relacionados = obtener_productos($conexion, false, null, 8, (int) $producto_detalle['id']);
+
+        // Reseñas del producto y la del usuario conectado (si ya escribió una)
+        $resenas = obtener_resenas($conexion, (int) $producto_detalle['id']);
+        $mi_resena = null;
+        foreach ($resenas as $resena) {
+            if (tiene_sesion_iniciada() && (int) $resena['usuario_id'] === (int) $_SESSION['usuario']['id']) {
+                $mi_resena = $resena;
+            }
+        }
+        $mensaje_resena = $_SESSION['mensaje_resena'] ?? '';
+        unset($_SESSION['mensaje_resena']);
     ?>
     <!-- Shop Detail Start -->
     <div class="container-fluid pb-5">
@@ -54,7 +65,8 @@ mostrar_migas_de_pan([
                         <div class="mr-2">
                             <?= generar_estrellas_html($producto_detalle['valoracion'], 'text-primary') ?>
                         </div>
-                        <small class="pt-1">(<?= number_format((float) $producto_detalle['valoracion'], 1) ?> / 5)</small>
+                        <small class="pt-1">(<?= number_format((float) $producto_detalle['valoracion'], 1) ?> / 5) ·
+                            <a href="#resenas" class="text-primary"><?= count($resenas) ?> <?= count($resenas) === 1 ? 'reseña' : 'reseñas' ?></a></small>
                     </div>
                     <!-- Precio -->
                     <div class="d-flex align-items-baseline mb-4">
@@ -120,6 +132,70 @@ mostrar_migas_de_pan([
                                 <?php endif; ?>
                                 <li class="list-group-item px-0 bg-transparent"><strong>Valoración:</strong> <?= number_format((float) $producto_detalle['valoracion'], 1) ?> / 5</li>
                             </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reseñas -->
+        <div class="row px-xl-5 mt-4" id="resenas">
+            <div class="col">
+                <div class="bg-light p-30">
+                    <?php if ($mensaje_resena): ?>
+                        <div class="alert alert-success"><?= escapar_html($mensaje_resena) ?></div>
+                    <?php endif; ?>
+                    <div class="row">
+                        <!-- Lista de reseñas -->
+                        <div class="col-md-6 mb-4">
+                            <h4 class="mb-4"><?= count($resenas) ?> <?= count($resenas) === 1 ? 'reseña' : 'reseñas' ?> de «<?= escapar_html($producto_detalle['nombre']) ?>»</h4>
+                            <?php if (!$resenas): ?>
+                                <p>Todavía no hay reseñas. ¡Sé el primero en opinar!</p>
+                            <?php endif; ?>
+                            <?php foreach ($resenas as $resena): ?>
+                                <div class="media mb-4">
+                                    <span class="d-inline-flex align-items-center justify-content-center bg-primary rounded-circle text-dark font-weight-bold mr-3 flex-shrink-0" style="width: 45px; height: 45px;">
+                                        <?= escapar_html(mb_strtoupper(mb_substr($resena['usuario'], 0, 1))) ?>
+                                    </span>
+                                    <div class="media-body">
+                                        <h6 class="mb-1"><span class="notranslate" translate="no"><?= escapar_html($resena['usuario']) ?></span>
+                                            <small> - <i><?= date('d/m/Y', strtotime($resena['fecha'])) ?></i></small></h6>
+                                        <div class="mb-2"><?= generar_estrellas_html((float) $resena['puntuacion'], 'text-primary mr-1') ?></div>
+                                        <?php if ($resena['comentario'] !== null && $resena['comentario'] !== ''): ?>
+                                            <p class="mb-0"><?= nl2br(escapar_html($resena['comentario'])) ?></p>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <!-- Escribir (o cambiar) mi reseña -->
+                        <div class="col-md-6">
+                            <h4 class="mb-4"><?= $mi_resena ? 'Edita tu reseña' : 'Escribe una reseña' ?></h4>
+                            <?php if (tiene_sesion_iniciada()): ?>
+                                <form action="index.php?p=informacion-producto&amp;id=<?= (int) $producto_detalle['id'] ?>" method="post">
+                                    <input type="hidden" name="accion_resena" value="guardar">
+                                    <input type="hidden" name="producto_id" value="<?= (int) $producto_detalle['id'] ?>">
+                                    <div class="form-group">
+                                        <label for="puntuacion">Tu puntuación *</label>
+                                        <select id="puntuacion" name="puntuacion" class="custom-select" required>
+                                            <?php $actual = (int) ($mi_resena['puntuacion'] ?? 5); ?>
+                                            <?php foreach ([5 => 'Excelente', 4 => 'Muy bueno', 3 => 'Normal', 2 => 'Regular', 1 => 'Malo'] as $valor => $texto): ?>
+                                                <option value="<?= $valor ?>"<?= $valor === $actual ? ' selected' : '' ?>><?= str_repeat('★', $valor) . str_repeat('☆', 5 - $valor) ?> <?= $valor ?> - <?= $texto ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="comentario">Tu opinión (opcional)</label>
+                                        <textarea id="comentario" name="comentario" class="form-control" rows="5" maxlength="1000"
+                                                  placeholder="¿Qué te ha parecido el producto?"><?= escapar_html($mi_resena['comentario'] ?? '') ?></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary px-3"><?= $mi_resena ? 'Guardar cambios' : 'Publicar reseña' ?></button>
+                                </form>
+                            <?php else: ?>
+                                <p>Para escribir una reseña tienes que iniciar sesión.</p>
+                                <a href="index.php?p=login" class="btn btn-primary px-3"><i class="fa fa-sign-in-alt mr-1"></i> Iniciar sesión</a>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

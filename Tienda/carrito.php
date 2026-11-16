@@ -138,7 +138,10 @@ mostrar_migas_de_pan([
                         </div>
                         <?php // Va unido al formulario del carrito (form="form-carrito") para guardar también las cantidades cambiadas ?>
                         <?php if (tiene_sesion_iniciada()): ?>
-                            <button class="btn btn-block btn-primary font-weight-bold my-3 py-3" type="submit" form="form-carrito" name="accion" value="finalizar">Finalizar compra</button>
+                            <button class="btn btn-block btn-primary font-weight-bold mt-3 mb-2 py-3" type="submit" form="form-carrito" name="accion" value="finalizar">
+                                <i class="fa fa-lock mr-1"></i> Pagar con tarjeta
+                            </button>
+                            <p class="small text-center mb-0"><i class="fab fa-cc-stripe mr-1"></i> Pago seguro con Stripe</p>
                         <?php else: ?>
                             <button class="btn btn-block btn-primary font-weight-bold mt-3 mb-2 py-3" type="submit" form="form-carrito" name="accion" value="finalizar">
                                 <i class="fa fa-sign-in-alt mr-1"></i> Inicia sesión para comprar

@@ -1,0 +1,3 @@
+# Clave secreta de Stripe: cada uno tiene la suya y NO se sube a GitHub.
+# Para crearla, copia config-stripe.ejemplo.php como config-stripe.php y pon tu clave.
+config-stripe.php

@@ -1,8 +1,8 @@
 <?php
 /*
   Crear cuenta de cliente (index.php?p=registro).
-  El formulario lo procesa admin-acciones.php (función registrar_usuario de index.php).
-  Variables disponibles: $errores_registro (admin-acciones.php)
+  El formulario lo procesa admin.php (función registrar_usuario de index.php).
+  Variables disponibles: $errores_registro (admin.php)
 */
 mostrar_migas_de_pan([
     'Inicio' => 'index.php',

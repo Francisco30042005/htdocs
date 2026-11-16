@@ -9805,3 +9805,31 @@ body > .skiptranslate,
 .goog-te-balloon-frame { display: none !important; }
 body { top: 0 !important; }
 .goog-text-highlight { background: none !important; box-shadow: none !important; }
+
+
+/* ==========================================================================
+   Start Shop: sugerencias del buscador (js/buscador.js)
+   ========================================================================== */
+.buscador-sugerencias {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.buscador-sugerencias .list-group-item {
+  color: #3D464D;
+}
+.buscador-sugerencias img {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+}
+.buscador-sugerencias .list-group-item.activa,
+.buscador-sugerencias .list-group-item:hover {
+  background-color: #FFD333 !important;
+  color: #3D464D !important;
+}

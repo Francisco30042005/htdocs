@@ -2,8 +2,8 @@
 /*
   Iniciar sesión (index.php?p=login). Lo usan clientes y administradores:
   al entrar, los administradores van al panel y los clientes a la tienda.
-  El formulario lo procesa admin-acciones.php.
-  Variables disponibles: $error_login (admin-acciones.php)
+  El formulario lo procesa admin.php.
+  Variables disponibles: $error_login (admin.php)
 */
 mostrar_migas_de_pan([
     'Inicio' => 'index.php',

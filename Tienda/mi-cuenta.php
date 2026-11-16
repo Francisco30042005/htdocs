@@ -1,7 +1,7 @@
 <?php
 /*
   Mi cuenta (index.php?p=mi-cuenta). Solo con sesión iniciada.
-  Los formularios los procesa admin-acciones.php.
+  Los formularios los procesa admin.php.
   Variables disponibles: $conexion, $mensaje_cuenta
 */
 $stmt = $conexion->prepare("SELECT usuario, nombre, direccion, telefono FROM usuarios WHERE id = ?");
@@ -17,6 +17,29 @@ mostrar_migas_de_pan([
     <!-- Mi cuenta Start -->
     <div class="container-fluid">
         <h2 class="section-title position-relative text-uppercase mx-xl-5 mb-4"><span class="bg-secondary pr-3">Mi cuenta</span></h2>
+
+        <!-- Saludo y cerrar sesión -->
+        <div class="row px-xl-5">
+            <div class="col-12 mb-4">
+                <div class="bg-light p-4 d-flex flex-wrap align-items-center justify-content-between">
+                    <div class="d-flex align-items-center mb-2 mb-sm-0">
+                        <span class="d-inline-flex align-items-center justify-content-center bg-primary rounded-circle mr-3" style="width: 48px; height: 48px;">
+                            <i class="fa fa-user text-dark"></i>
+                        </span>
+                        <div>
+                            <h5 class="mb-0">Hola, <span class="notranslate" translate="no"><?= escapar_html($yo['nombre'] ?: $yo['usuario']) ?></span></h5>
+                            <small class="text-muted"><?= es_admin() ? 'Administrador' : 'Cliente' ?> · usuario <span class="notranslate" translate="no"><?= escapar_html($yo['usuario']) ?></span></small>
+                        </div>
+                    </div>
+                    <!-- Cerrar sesión va por POST (con token) para que un simple enlace no pueda cerrarla -->
+                    <form action="index.php" method="post">
+                        <input type="hidden" name="accion_sesion" value="salir">
+                        <input type="hidden" name="token_csrf" value="<?= escapar_html(obtener_token_csrf()) ?>">
+                        <button type="submit" class="btn btn-outline-dark"><i class="fa fa-sign-out-alt mr-1"></i> Cerrar sesión</button>
+                    </form>
+                </div>
+            </div>
+        </div>
         <div class="row px-xl-5">
             <div class="col-12">
                 <?php if ($mensaje_cuenta): ?>
