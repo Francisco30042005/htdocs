@@ -40,7 +40,7 @@ if ($conexion->connect_error) {
     die("<h2>Error de conexión con la base de datos</h2>"
         . "<p>" . htmlspecialchars($conexion->connect_error) . "</p>"
         . "<p>Comprueba que MySQL está arrancado en el panel de XAMPP y que existe la base de datos <b>"
-        . $db_nombre . "</b>. Abre <a href='comprobar.php'>comprobar.php</a> para ver el diagnóstico completo.</p>");
+        . $db_nombre . "</b>.</p>");
 }
 
 // 4. Establecer el juego de caracteres a UTF-8 (¡MUY IMPORTANTE!)
