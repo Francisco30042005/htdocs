@@ -1,9 +1,14 @@
 <?php
 /*
   CONÓCENOS (index.php?p=conocenos): formulario de contacto y mapa.
-  Al enviar el formulario se manda un correo y se va a "Mensaje enviado".
+  Al enviar el formulario:
+    1. Llega un correo a la tienda (CORREO_DESTINO) con el mensaje. Al pulsar "Responder"
+       se le contesta directamente a quien lo escribió.
+    2. Quien lo escribió (el remitente) recibe una copia como confirmación.
+    3. Se va a la página "Mensaje enviado".
+  Los correos se envían con Gmail: ver config-correo.ejemplo.php y el apartado 11 de funciones.php.
 */
-$error_envio = false;
+$error_envio = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Se quitan los saltos de línea para que no se puedan colar cabeceras en el correo
@@ -14,17 +19,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $comentarios = trim($_POST['comentarios'] ?? '');
 
     if ($nombre === '' || $apellidos === '' || $telefono === '' || !$correo) {
-        $error_envio = true;
+        $error_envio = 'Revisa los datos: todos los campos con * son obligatorios y el correo electrónico debe ser válido.';
+    } elseif (time() - ($_SESSION['ultimo_mensaje'] ?? 0) < 60) {
+        // Máximo un mensaje por minuto: así nadie puede usar la tienda para mandar correos en masa
+        $error_envio = 'Acabas de enviarnos un mensaje. Espera un minuto antes de enviar otro.';
+    } elseif (!correo_configurado()) {
+        $error_envio = 'El envío de mensajes no está configurado todavía (falta config-correo.php). Escríbenos a info@tiendatiopepe.es.';
     } else {
-        $destinatario = 'gsebas.rivera@gmail.com';
-        $asunto = 'Mensaje del formulario de Contacta con nosotros (Tio Pepe)';
-        $texto = "Nombre: $nombre\r\nApellidos: $apellidos\r\nTel.: $telefono\r\nEmail: $correo\r\nComentarios: $comentarios\r\n";
-        $cabeceras = "Content-type: text/plain; charset=utf-8\r\n"
-                   . "From: \"" . str_replace('"', '', "$nombre $apellidos") . "\" <$correo>\r\n"
-                   . "Reply-To: $correo\r\n";
-        @mail($destinatario, $asunto, $texto, $cabeceras); // @: en XAMPP sin correo configurado no avisa del fallo
-        header('Location: index.php?p=solicitud-recibida');
-        exit;
+        $datos = "Nombre: $nombre $apellidos\nTeléfono: $telefono\nCorreo: $correo\n\nComentarios:\n$comentarios\n";
+
+        // 1. A la tienda. "Responder" contesta a quien escribió.
+        $enviado = enviar_correo(CORREO_DESTINO, "Nuevo mensaje de $nombre $apellidos (Tio Pepe)",
+                                 "Mensaje recibido desde el formulario de Conócenos:\n\n" . $datos, $correo);
+        if ($enviado) {
+            // 2. Copia para el remitente
+            enviar_correo($correo, 'Hemos recibido tu mensaje - Tio Pepe',
+                          "Hola, $nombre:\n\nGracias por escribirnos. Hemos recibido tu mensaje y te responderemos lo antes posible.\n\n"
+                          . "Esta es una copia de lo que nos has enviado:\n\n" . $datos . "\nUn saludo,\nEl equipo de Tio Pepe");
+            $_SESSION['ultimo_mensaje'] = time();
+            header('Location: index.php?p=solicitud-recibida');
+            exit;
+        }
+        $error_envio = 'No se ha podido enviar el mensaje. Inténtalo de nuevo más tarde.';
     }
 }
 
@@ -40,34 +56,32 @@ mostrar_migas_de_pan([
             <div class="col-lg-7 mb-5">
                 <div class="contact-form bg-light p-30">
                     <?php if ($error_envio): ?>
-                        <div class="alert alert-danger">
-                            Revisa los datos: todos los campos con * son obligatorios y el correo electrónico debe ser válido.
-                        </div>
+                        <div class="alert alert-danger"><?= escapar_html($error_envio) ?></div>
                     <?php endif; ?>
                     <form action="index.php?p=conocenos" method="post">
                         <div class="form-row">
                             <!-- input NOMBRE -->
                             <div class="form-group col-md-6">
-                                <input type="text" class="form-control" name="nombre" maxlength="40" placeholder="Nombre *" required>
+                                <input type="text" class="form-control" name="nombre" maxlength="40" placeholder="Nombre *" required value="<?= escapar_html($_POST['nombre'] ?? '') ?>">
                             </div>
                             <!-- input APELLIDOS -->
                             <div class="form-group col-md-6">
-                                <input type="text" class="form-control" name="apellidos" maxlength="80" placeholder="Apellidos *" required>
+                                <input type="text" class="form-control" name="apellidos" maxlength="80" placeholder="Apellidos *" required value="<?= escapar_html($_POST['apellidos'] ?? '') ?>">
                             </div>
                         </div>
                         <div class="form-row">
                             <!-- input TELÉFONO -->
                             <div class="form-group col-md-6">
-                                <input type="tel" class="form-control" name="phone" maxlength="30" placeholder="Teléfono *" required>
+                                <input type="tel" class="form-control" name="phone" maxlength="30" placeholder="Teléfono *" required value="<?= escapar_html($_POST['phone'] ?? '') ?>">
                             </div>
                             <!-- input CORREO ELECTRÓNICO -->
                             <div class="form-group col-md-6">
-                                <input type="email" class="form-control" name="email" maxlength="100" placeholder="Correo electrónico *" required>
+                                <input type="email" class="form-control" name="email" maxlength="100" placeholder="Correo electrónico *" required value="<?= escapar_html($_POST['email'] ?? '') ?>">
                             </div>
                         </div>
                         <!-- textarea COMENTARIOS -->
                         <div class="form-group">
-                            <textarea class="form-control" name="comentarios" rows="8" placeholder="Indica aquí tus comentarios."></textarea>
+                            <textarea class="form-control" name="comentarios" rows="8" placeholder="Indica aquí tus comentarios." maxlength="2000"><?= escapar_html($_POST['comentarios'] ?? '') ?></textarea>
                         </div>
                         <!-- botones de ENVIAR & RESTABLECER -->
                         <div>

@@ -1,83 +1,170 @@
 -- =====================================================================
--- Tio Pepe - Base de datos COMPLETA (único archivo SQL del proyecto)
+-- Tio Pepe - Base de datos (único archivo SQL del proyecto)
 -- =====================================================================
--- Une el volcado de "startshop" (10-11-2026) con los cambios de la
--- sección Administración (antes sql/admin.sql):
---   · tabla categorias
---   · columnas categoria_id y existencias en productos (+ clave foránea)
---   · referencias con formato COD-xx
---   · tabla usuarios (login del panel)
+-- SE IMPORTA SOLO: al abrir la tienda, instalar-bd.php ejecuta este archivo
+-- la primera vez y cada vez que cambia (por ejemplo, después de un "git pull").
 --
--- SE IMPORTA SOLO: conexion.php (instalar-bd.php) lo ejecuta al abrir la
--- tienda cada vez que este archivo cambia. No hace falta phpMyAdmin.
+-- NUNCA BORRA NADA: lo que hagas desde la aplicación (productos, usuarios,
+-- pedidos...) se conserva. Este archivo solo AÑADE lo que falte:
+--   · CREATE TABLE IF NOT EXISTS        crea una tabla solo si no existe
+--   · ADD COLUMN IF NOT EXISTS          añade una columna solo si no existe
+--   · INSERT IGNORE                     añade un dato de ejemplo solo si no está ya
+--                                       (se reconoce por su id o su clave única)
 --
--- Para compartir cambios de la base de datos con el equipo:
---   1. phpMyAdmin > startshop > Exportar > SQL
---   2. Sustituye el contenido de este archivo por la exportación
---      (puedes conservar esta cabecera).
---   3. Los demás, al abrir la tienda, reciben la base de datos nueva.
---   ¡OJO! Al importarse se BORRA la base de datos local y se crea de cero.
+-- Para compartir un cambio con el equipo, añádelo aquí siguiendo esas reglas:
+--   · Tabla nueva     -> un CREATE TABLE IF NOT EXISTS en el apartado 1
+--   · Columna nueva   -> un ALTER TABLE ... ADD COLUMN IF NOT EXISTS en el apartado 2
+--   · Datos nuevos    -> un INSERT IGNORE con su id en el apartado 3
 --
--- Usuarios de prueba (contraseña sin cifrar), entran por index.php?p=login
+-- Empezar de cero (borra TODO y vuelve a los datos de ejemplo):
+--   abre http://localhost/Tienda/index.php?reinstalar_bd=1
+--
+-- Usuarios de prueba (las contraseñas se guardan cifradas), entran por index.php?p=login
 --   Administrador  admin / admin1234     -> panel de administración
 --   Cliente        cliente / cliente1234 -> tienda
 -- =====================================================================
 
-SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-START TRANSACTION;
+SET NAMES utf8mb4;
 SET time_zone = "+00:00";
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-
--- Por si alguien lo importa a mano en phpMyAdmin
 CREATE DATABASE IF NOT EXISTS `startshop` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `startshop`;
 
-SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `productos`;
-DROP TABLE IF EXISTS `categorias`;
-DROP TABLE IF EXISTS `usuarios`;
-DROP TABLE IF EXISTS `cupones`;
-DROP TABLE IF EXISTS `resenas`;
-DROP TABLE IF EXISTS `pedido_lineas`;
-DROP TABLE IF EXISTS `pedidos`;
-SET FOREIGN_KEY_CHECKS = 1;
 
--- --------------------------------------------------------
--- Tabla `categorias`
--- --------------------------------------------------------
+-- =====================================================================
+-- 1. TABLAS
+-- =====================================================================
 
-CREATE TABLE `categorias` (
-  `id` int(10) UNSIGNED NOT NULL,
-  `nombre` varchar(100) NOT NULL
+CREATE TABLE IF NOT EXISTS `categorias` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `nombre` varchar(100) NOT NULL UNIQUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `categorias` (`id`, `nombre`) VALUES
-(1, 'Calzado'),
-(5, 'Cuidado personal'),
-(4, 'Deportes'),
-(2, 'Ropa'),
-(3, 'Videojuegos');
-
--- --------------------------------------------------------
--- Tabla `productos`
--- --------------------------------------------------------
-
-CREATE TABLE `productos` (
-  `id` int(10) UNSIGNED NOT NULL,
-  `referencia` varchar(50) NOT NULL,
+-- La valoración de cada producto no se guarda: la tienda la calcula como la media de sus reseñas
+CREATE TABLE IF NOT EXISTS `productos` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `referencia` varchar(50) NOT NULL UNIQUE,
   `nombre` varchar(150) NOT NULL,
   `precio` decimal(10,2) UNSIGNED NOT NULL,
   `precio_rebajado` decimal(10,2) UNSIGNED DEFAULT NULL,
   `existencias` int(10) UNSIGNED NOT NULL DEFAULT 0,
   `descripcion` text DEFAULT NULL,
-  `categoria_id` int(10) UNSIGNED DEFAULT NULL
+  `categoria_id` int(10) UNSIGNED DEFAULT NULL,
+  CONSTRAINT `fk_productos_categoria` FOREIGN KEY (`categoria_id`) REFERENCES `categorias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `productos` (`id`, `referencia`, `nombre`, `precio`, `precio_rebajado`, `existencias`, `descripcion`, `categoria_id`) VALUES
+-- contrasena: cifrada con password_hash() de PHP
+-- intentos_fallidos y bloqueado_hasta: tras 5 contraseñas mal seguidas, la cuenta se bloquea 15 minutos
+CREATE TABLE IF NOT EXISTS `usuarios` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `usuario` varchar(50) NOT NULL UNIQUE,
+  `contrasena` varchar(255) NOT NULL,
+  `rol` enum('admin','cliente') NOT NULL DEFAULT 'cliente',
+  `nombre` varchar(100) DEFAULT NULL,
+  `direccion` varchar(200) DEFAULT NULL,
+  `telefono` varchar(20) DEFAULT NULL,
+  `intentos_fallidos` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `bloqueado_hasta` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Códigos de descuento del carrito
+CREATE TABLE IF NOT EXISTS `cupones` (
+  `codigo` varchar(30) NOT NULL PRIMARY KEY,
+  `porcentaje` int(10) UNSIGNED NOT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Opiniones de los clientes (1 a 5 estrellas y texto opcional). Una por cliente y producto.
+CREATE TABLE IF NOT EXISTS `resenas` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `producto_id` int(10) UNSIGNED NOT NULL,
+  `usuario_id` int(10) UNSIGNED NOT NULL,
+  `puntuacion` tinyint(3) UNSIGNED NOT NULL,
+  `comentario` text DEFAULT NULL,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  UNIQUE KEY `una_por_usuario` (`producto_id`, `usuario_id`),
+  CONSTRAINT `fk_resenas_producto` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_resenas_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Compras pagadas con Stripe. De cada producto se guarda el nombre y el precio pagado,
+-- por si luego cambia o se borra.
+CREATE TABLE IF NOT EXISTS `pedidos` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `usuario_id` int(10) UNSIGNED NOT NULL,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  `total` decimal(10,2) UNSIGNED NOT NULL,
+  `descuento` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `direccion` varchar(200) DEFAULT NULL,
+  `estado` enum('pendiente','enviado','entregado','cancelado') NOT NULL DEFAULT 'pendiente',
+  `pago_stripe` varchar(100) DEFAULT NULL,
+  CONSTRAINT `fk_pedidos_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `pedido_lineas` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `pedido_id` int(10) UNSIGNED NOT NULL,
+  `producto_id` int(10) UNSIGNED DEFAULT NULL,
+  `nombre` varchar(150) NOT NULL,
+  `precio` decimal(10,2) UNSIGNED NOT NULL,
+  `cantidad` int(10) UNSIGNED NOT NULL,
+  CONSTRAINT `fk_lineas_pedido` FOREIGN KEY (`pedido_id`) REFERENCES `pedidos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_lineas_producto` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Productos que cada cliente ha marcado con el corazón
+CREATE TABLE IF NOT EXISTS `favoritos` (
+  `usuario_id` int(10) UNSIGNED NOT NULL,
+  `producto_id` int(10) UNSIGNED NOT NULL,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`usuario_id`, `producto_id`),
+  CONSTRAINT `fk_favoritos_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_favoritos_producto` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Anuncios: los crea el administrador (ya aprobados) o los propone un cliente desde
+-- "Mi cuenta" (pendientes hasta que el administrador los aprueba o los rechaza).
+-- imagen: ruta de la foto (img/...) o NULL; enlace: adónde lleva el anuncio o NULL
+CREATE TABLE IF NOT EXISTS `anuncios` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `usuario_id` int(10) UNSIGNED NOT NULL,
+  `titulo` varchar(80) NOT NULL,
+  `texto` varchar(300) NOT NULL,
+  `imagen` varchar(200) DEFAULT NULL,
+  `enlace` varchar(300) DEFAULT NULL,
+  `estado` enum('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  CONSTRAINT `fk_anuncios_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+-- =====================================================================
+-- 2. COLUMNAS AÑADIDAS A TABLAS QUE YA EXISTÍAN
+--    (para las bases de datos creadas con versiones anteriores de este archivo)
+-- =====================================================================
+
+ALTER TABLE `usuarios`
+  ADD COLUMN IF NOT EXISTS `nombre` varchar(100) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `direccion` varchar(200) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `telefono` varchar(20) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `intentos_fallidos` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS `bloqueado_hasta` datetime DEFAULT NULL;
+
+-- La valoración ya no se guarda (se calcula con las reseñas): se quita la columna antigua si existe
+ALTER TABLE `productos` DROP COLUMN IF EXISTS `valoracion`;
+
+
+-- =====================================================================
+-- 3. DATOS DE EJEMPLO (solo se añaden si no están ya)
+-- =====================================================================
+
+INSERT IGNORE INTO `categorias` (`id`, `nombre`) VALUES
+(1, 'Calzado'),
+(2, 'Ropa'),
+(3, 'Videojuegos'),
+(4, 'Deportes'),
+(5, 'Cuidado personal');
+
+INSERT IGNORE INTO `productos` (`id`, `referencia`, `nombre`, `precio`, `precio_rebajado`, `existencias`, `descripcion`, `categoria_id`) VALUES
 (1, 'COD-01', 'Zapatillas Nike', 69.99, NULL, 10, 'Zapatillas de estilo clásico con la parte superior de piel en blanco y detalles en azul marino. Su suela gruesa con amortiguación de aire absorbe los impactos al caminar, por lo que son perfectas para el día a día, para ir a clase o para entrenar en el gimnasio.\n\nCaracterísticas:\n- Parte superior de piel con refuerzos en la puntera y el talón\n- Amortiguación de aire en el talón para mayor comodidad\n- Plantilla acolchada y forro interior transpirable\n- Suela de goma con buen agarre en interior y exterior\n- Tallas de la 38 a la 46', 1),
 (2, 'COD-04', 'Camiseta', 15.00, NULL, 10, 'Camiseta deportiva de manga corta en azul intenso, con un pequeño logotipo bordado en el pecho. Su tejido técnico ligero expulsa el sudor y se seca rápido, así que es tan útil para correr o ir al gimnasio como para el día a día.\n\nCaracterísticas:\n- Tejido técnico 100 % poliéster, ligero y transpirable\n- Secado rápido y tacto suave\n- Cuello redondo y costuras planas que no rozan\n- Corte regular unisex\n- Tallas de la S a la XXL. Lavable a máquina a 30 grados', 2),
 (3, 'COD-02', 'GTA 6', 99.99, 70.00, 10, 'Grand Theft Auto VI para PlayStation 5. La saga vuelve a Vice City, en el estado de Leonida, con una historia protagonizada por Lucia y Jason. Explora un mundo abierto enorme y lleno de vida, con ciudades, playas, pantanos y carreteras, y disfruta de su modo en línea.\n\nCaracterísticas:\n- Plataforma: PlayStation 5\n- Edición estándar en formato físico\n- Textos y voces en español\n- Modo historia para un jugador y modo en línea\n- Para mayores de 18 años (PEGI 18)', 3),
@@ -99,89 +186,18 @@ INSERT INTO `productos` (`id`, `referencia`, `nombre`, `precio`, `precio_rebajad
 (21, 'COD-19', 'Cepillo de dientes eléctrico recargable', 39.90, 29.90, 24, 'Cepillo de dientes eléctrico sónico que elimina mucha más placa que un cepillo manual. Tiene tres modos de limpieza y un temporizador que te avisa cuando llevas los dos minutos recomendados por los dentistas.\n\nCaracterísticas:\n- Tecnología sónica de alta frecuencia\n- 3 modos: limpieza, blanqueamiento y encías sensibles\n- Temporizador de 2 minutos con aviso cada 30 segundos\n- Batería de hasta 3 semanas con carga por USB\n- Incluye 2 cabezales y estuche de viaje', 5),
 (22, 'COD-20', 'Chanclas de playa', 12.99, NULL, 50, 'Chanclas ligeras con plantilla acolchada y tira suave en forma de V que no roza entre los dedos. La suela antideslizante agarra bien en mojado, así que son ideales para la playa, la piscina y las duchas del gimnasio.\n\nCaracterísticas:\n- Plantilla acolchada\n- Tira suave que no roza\n- Suela antideslizante, también en mojado\n- Secado rápido\n- Tallas de la 36 a la 46', 1);
 
--- --------------------------------------------------------
--- Tabla `usuarios`
--- --------------------------------------------------------
+INSERT IGNORE INTO `usuarios` (`id`, `usuario`, `contrasena`, `rol`) VALUES
+(1, 'admin', '$2y$10$t54ANPg6PPUNIpXITSONQOmG6rQzMoQw/xhCbHlHLYbDvlQJlVhOu', 'admin'),
+(2, 'cliente', '$2y$10$feN0h6tHpZlNNKzBJbQMDO5GJS845JRKZZ4ldZLu.m87CIIprjKo.', 'cliente'),
+(5, 'cacahuete', '$2y$10$zeqtmourE1gM0y/QKSIuFu/UKwDlvrwmnSl.yW2zD9xO.obmaJpw2', 'cliente'),
+(6, 'ciruela', '$2y$10$dj797GBKgbxlUDXkdQyamO2tkPqrKz1hoQtLkJo1LggJEosh1gyg2', 'cliente');
 
-CREATE TABLE `usuarios` (
-  `id` int(10) UNSIGNED NOT NULL,
-  `usuario` varchar(50) NOT NULL,
-  `contrasena` varchar(255) NOT NULL,
-  `rol` enum('admin','cliente') NOT NULL DEFAULT 'cliente',
-  `nombre` varchar(100) DEFAULT NULL,
-  `direccion` varchar(200) DEFAULT NULL,
-  `telefono` varchar(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-INSERT INTO `usuarios` (`id`, `usuario`, `contrasena`, `rol`) VALUES
-(1, 'admin', 'admin1234', 'admin'),
-(2, 'cliente', 'cliente1234', 'cliente'),
-(5, 'cacahuete', 'cacaca', 'cliente'),
-(6, 'ciruela', 'mbappe', 'cliente');
-
--- --------------------------------------------------------
--- Tabla `cupones` (códigos de descuento del carrito)
--- --------------------------------------------------------
-
-CREATE TABLE `cupones` (
-  `codigo` varchar(30) NOT NULL PRIMARY KEY,
-  `porcentaje` int(10) UNSIGNED NOT NULL,
-  `activo` tinyint(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-INSERT INTO `cupones` (`codigo`, `porcentaje`, `activo`) VALUES
+INSERT IGNORE INTO `cupones` (`codigo`, `porcentaje`, `activo`) VALUES
 ('BIENVENIDA10', 10, 1),
 ('VERANO20', 20, 1),
 ('BLACKFRIDAY30', 30, 0);
 
--- --------------------------------------------------------
--- Índices
--- --------------------------------------------------------
-
-ALTER TABLE `categorias`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `nombre` (`nombre`);
-
-ALTER TABLE `productos`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `referencia` (`referencia`),
-  ADD KEY `fk_productos_categoria` (`categoria_id`);
-
-ALTER TABLE `usuarios`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `usuario` (`usuario`);
-
--- --------------------------------------------------------
--- AUTO_INCREMENT
--- --------------------------------------------------------
-
-ALTER TABLE `categorias`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
-
-ALTER TABLE `productos`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
-
-ALTER TABLE `usuarios`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
-
--- --------------------------------------------------------
--- Tabla `resenas` (opiniones de los clientes: 1 a 5 estrellas y texto opcional)
--- Cada usuario puede dejar una reseña por producto.
--- --------------------------------------------------------
-
-CREATE TABLE `resenas` (
-  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `producto_id` int(10) UNSIGNED NOT NULL,
-  `usuario_id` int(10) UNSIGNED NOT NULL,
-  `puntuacion` tinyint(3) UNSIGNED NOT NULL,
-  `comentario` text DEFAULT NULL,
-  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
-  UNIQUE KEY `una_por_usuario` (`producto_id`, `usuario_id`),
-  CONSTRAINT `fk_resenas_producto` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_resenas_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-INSERT INTO `resenas` (`producto_id`, `usuario_id`, `puntuacion`, `comentario`, `fecha`) VALUES
+INSERT IGNORE INTO `resenas` (`producto_id`, `usuario_id`, `puntuacion`, `comentario`, `fecha`) VALUES
 (1, 2, 5, 'Muy cómodas, las uso a diario.', '2026-10-08 14:13:00'),
 (1, 5, 5, NULL, '2026-10-15 19:26:00'),
 (1, 6, 4, 'Buena calidad, aunque tallan un poco grandes.', '2026-10-22 12:39:00'),
@@ -226,57 +242,24 @@ INSERT INTO `resenas` (`producto_id`, `usuario_id`, `puntuacion`, `comentario`, 
 (22, 5, 4, 'Cómodas para la piscina.', '2026-10-15 15:06:00'),
 (22, 6, 3, 'Rozan un poco los primeros días.', '2026-10-22 20:19:00');
 
--- La valoración de cada producto no se guarda: la tienda la calcula como la media de sus reseñas
-
--- --------------------------------------------------------
--- Tablas `pedidos` y `pedido_lineas` (las compras pagadas con Stripe)
--- De cada producto se guarda el nombre y el precio que se pagó, por si luego cambia o se borra.
--- --------------------------------------------------------
-
-CREATE TABLE `pedidos` (
-  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `usuario_id` int(10) UNSIGNED NOT NULL,
-  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
-  `total` decimal(10,2) UNSIGNED NOT NULL,
-  `descuento` int(10) UNSIGNED NOT NULL DEFAULT 0,
-  `direccion` varchar(200) DEFAULT NULL,
-  `estado` enum('pendiente','enviado','entregado','cancelado') NOT NULL DEFAULT 'pendiente',
-  `pago_stripe` varchar(100) DEFAULT NULL,
-  CONSTRAINT `fk_pedidos_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE `pedido_lineas` (
-  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `pedido_id` int(10) UNSIGNED NOT NULL,
-  `producto_id` int(10) UNSIGNED DEFAULT NULL,
-  `nombre` varchar(150) NOT NULL,
-  `precio` decimal(10,2) UNSIGNED NOT NULL,
-  `cantidad` int(10) UNSIGNED NOT NULL,
-  CONSTRAINT `fk_lineas_pedido` FOREIGN KEY (`pedido_id`) REFERENCES `pedidos` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_lineas_producto` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 -- Pedidos de ejemplo (total = productos con el descuento de los cupones + 10 € de envío)
-INSERT INTO `pedidos` (`id`, `usuario_id`, `fecha`, `total`, `descuento`, `direccion`, `estado`) VALUES
+INSERT IGNORE INTO `pedidos` (`id`, `usuario_id`, `fecha`, `total`, `descuento`, `direccion`, `estado`) VALUES
 (1, 2, '2026-11-02 18:24:00', 109.99, 0, 'Calle Mayor 1, 28013 Madrid', 'entregado'),
 (2, 5, '2026-11-10 11:05:00', 41.99, 20, 'Avenida de la Paz 23, 41001 Sevilla', 'enviado'),
 (3, 6, '2026-11-15 20:47:00', 39.89, 0, 'Plaza del Pilar 4, 50003 Zaragoza', 'pendiente');
 
-INSERT INTO `pedido_lineas` (`pedido_id`, `producto_id`, `nombre`, `precio`, `cantidad`) VALUES
-(1, 1, 'Zapatillas Nike', 69.99, 1),
-(1, 2, 'Camiseta', 15.00, 2),
-(2, 17, 'Mando inalámbrico para consola', 39.99, 1),
-(3, 19, 'Esterilla de yoga antideslizante', 19.99, 1),
-(3, 20, 'Gel de baño y ducha floral', 4.95, 2);
+INSERT IGNORE INTO `pedido_lineas` (`id`, `pedido_id`, `producto_id`, `nombre`, `precio`, `cantidad`) VALUES
+(1, 1, 1, 'Zapatillas Nike', 69.99, 1),
+(2, 1, 2, 'Camiseta', 15.00, 2),
+(3, 2, 17, 'Mando inalámbrico para consola', 39.99, 1),
+(4, 3, 19, 'Esterilla de yoga antideslizante', 19.99, 1),
+(5, 3, 20, 'Gel de baño y ducha floral', 4.95, 2);
 
--- --------------------------------------------------------
--- Clave foránea productos -> categorias
--- --------------------------------------------------------
+INSERT IGNORE INTO `favoritos` (`usuario_id`, `producto_id`) VALUES
+(2, 3),
+(2, 15);
 
-ALTER TABLE `productos`
-  ADD CONSTRAINT `fk_productos_categoria` FOREIGN KEY (`categoria_id`) REFERENCES `categorias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-COMMIT;
-
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+INSERT IGNORE INTO `anuncios` (`id`, `usuario_id`, `titulo`, `texto`, `imagen`, `enlace`, `estado`, `fecha`) VALUES
+(1, 1, 'Black Friday en Tio Pepe', 'Hasta un 30 % de descuento en productos seleccionados. ¡Corre, que vuelan!', 'img/offer-1.jpg', 'index.php?p=rebajados', 'aprobado', '2026-11-20 10:00:00'),
+(2, 5, 'Clases de pádel en Sevilla', 'Profesor titulado, grupos reducidos y horarios de mañana y tarde. La primera clase es gratis.', NULL, NULL, 'aprobado', '2026-11-21 17:30:00'),
+(3, 6, 'Vendo bicicleta de montaña', 'Talla M, ruedas de 29 pulgadas y muy poco uso. 150 €. Pregunta sin compromiso.', NULL, NULL, 'pendiente', '2026-11-22 12:15:00');

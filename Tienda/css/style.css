@@ -9860,3 +9860,20 @@ body { top: 0 !important; }
 .tema-oscuro .product-item:hover {
   box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
 }
+
+/* Tio Pepe: botón del corazón en rojo cuando el producto ya está en favoritos */
+.btn.favorito i,
+.product-item .product-action .btn.favorito i {
+  color: #dc3545 !important;
+}
+
+/* Tio Pepe: en el carrusel de anuncios todas las tarjetas miden lo mismo de alto */
+.anuncios-carousel .owl-stage {
+  display: flex;
+}
+.anuncios-carousel .owl-item {
+  display: flex;
+}
+.anuncios-carousel .owl-item > div {
+  width: 100%;
+}

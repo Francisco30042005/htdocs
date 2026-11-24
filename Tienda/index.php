@@ -13,9 +13,23 @@
 */
 
 // 1. Sesión, base de datos y funciones
+// Seguridad de la cookie de sesión:
+//   httponly -> JavaScript no puede leerla (si alguien cuela un script, no roba la sesión)
+//   samesite -> el navegador no la envía desde formularios de otras webs
+session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
 session_start();
+
+// Cabeceras de seguridad que se mandan con todas las páginas
+header('X-Frame-Options: SAMEORIGIN');        // nadie puede meter la tienda dentro de su web (iframe)
+header('X-Content-Type-Options: nosniff');    // el navegador no "adivina" el tipo de los archivos
+header('Referrer-Policy: same-origin');       // no se envía la dirección de la tienda a otras webs
 require 'conexion.php';
 require 'funciones.php';
+
+// Cuenta de Gmail para enviar correos (config-correo.php no se sube a GitHub)
+if (is_file('config-correo.php')) {
+    require 'config-correo.php';
+}
 
 // Clave de Stripe para pagar con tarjeta (config-stripe.php no se sube a GitHub)
 if (is_file('config-stripe.php')) {
@@ -55,6 +69,10 @@ $paginas = [
     'login'                => ['login.php',           'Acceder'],
     'registro'             => ['registro.php',        'Crear cuenta'],
     'mi-cuenta'            => ['mi-cuenta.php',       'Mi cuenta'],
+    'favoritos'            => ['favoritos.php',       'Mis favoritos'],
+    'privacidad'           => ['privacidad.php',      'Política de privacidad'],
+    'cookies'              => ['cookies.php',         'Política de cookies'],
+    'terminos'             => ['terminos.php',        'Términos y condiciones'],
     'admin'                => ['admin.php',           'Administración'],
 ];
 $pagina = $_GET['p'] ?? '';

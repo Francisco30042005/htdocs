@@ -75,5 +75,26 @@
         button.parent().parent().find('input').val(newVal);
     });
     
-})(jQuery);
+    // Carrusel de anuncios (inicio): 1, 2 o 3 a la vez según el ancho de la pantalla
+    $('.anuncios-carousel').owlCarousel({
+        loop: $('.anuncios-carousel .bg-light').length > 3, // solo da la vuelta si hay más de los que caben
+        margin: 29,
+        nav: false,
+        dots: true,
+        autoplay: true,
+        autoplayHoverPause: true, // se para al pasar el ratón por encima
+        smartSpeed: 1000,
+        responsive: {
+            0:{
+                items:1
+            },
+            768:{
+                items:2
+            },
+            992:{
+                items:3
+            }
+        }
+    });
 
+})(jQuery);

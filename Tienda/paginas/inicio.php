@@ -1,7 +1,8 @@
 <?php
 /*
-  INICIO (index.php): carrusel, banners y los últimos productos.
+  INICIO (index.php): carrusel, banners, publicidad, los últimos productos y rebajados.
 */
+$anuncios = obtener_anuncios_aprobados(20); // hasta 20, en un carrusel que va pasando solo
 $ultimos_productos = obtener_productos(limite: 8);
 $productos_rebajados = obtener_productos(rebajados: true, limite: 8);
 ?>
@@ -96,6 +97,29 @@ $productos_rebajados = obtener_productos(rebajados: true, limite: 8);
         </div>
     </div>
     <!-- Featured End -->
+
+
+    <?php if ($anuncios): ?>
+    <!-- Publicidad Start: anuncios aprobados en un carrusel (ver apartado 10 de funciones.php y "anuncios-carousel" en js/main.js) -->
+    <div class="container-fluid pt-5 pb-3">
+        <h2 class="section-title position-relative text-uppercase mx-xl-5 mb-4"><span class="bg-secondary pr-3">Anuncios</span></h2>
+        <div class="row px-xl-5">
+            <div class="col">
+                <div class="owl-carousel anuncios-carousel">
+                    <?php foreach ($anuncios as $anuncio): ?>
+                        <?php mostrar_anuncio($anuncio); ?>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div class="col-12 text-center mt-3">
+                <a href="<?= tiene_sesion_iniciada() ? 'index.php?p=mi-cuenta#mis-anuncios' : 'index.php?p=login' ?>" class="text-primary">
+                    <i class="fa fa-bullhorn mr-1"></i> ¿Quieres anunciarte aquí?
+                </a>
+            </div>
+        </div>
+    </div>
+    <!-- Publicidad End -->
+    <?php endif; ?>
 
 
     <!-- Products Start -->

@@ -11,6 +11,9 @@
     6. Usuarios            quién ha iniciado sesión y el token de seguridad de los formularios
     7. Pagos con Stripe    crear el pago y finalizar la compra (guarda el pedido)
     8. Pedidos             estados de un pedido y sus productos
+    9. Favoritos           el corazón de los productos
+   10. Publicidad          anuncios de clientes y de la tienda
+   11. Correo              enviar correos con Gmail (formulario de Conócenos)
 */
 
 const MONEDA = '€';
@@ -265,7 +268,11 @@ function mostrar_tarjeta_producto(array $producto): void
                     <button type="submit" class="btn btn-outline-dark btn-square" title="Añadir al carrito"><i class="fa fa-shopping-cart"></i></button>
                 </form>
                 <a class="btn btn-outline-dark btn-square" href="<?= escapar_html($url) ?>" title="Ver producto"><i class="fa fa-search"></i></a>
+                <?php mostrar_boton_favorito($producto, 'btn btn-outline-dark btn-square'); ?>
             </div>
+            <?php if (es_favorito($producto['id'])): ?>
+                <span class="position-absolute text-danger" style="top: 10px; left: 12px; z-index: 1;" title="En tus favoritos"><i class="fas fa-heart"></i></span>
+            <?php endif; ?>
         </div>
         <div class="text-center py-4 px-2">
             <a class="h6 text-decoration-none text-truncate d-block" href="<?= escapar_html($url) ?>"><?= escapar_html($producto['nombre']) ?></a>
@@ -443,6 +450,53 @@ function comprobar_contrasena(string $contrasena): string
     }
     $ultimo = array_pop($falta); // "a, b y c"
     return 'La contraseña debe tener ' . ($falta ? implode(', ', $falta) . ' y ' : '') . $ultimo . '.';
+}
+
+/*
+  CONTRASEÑAS CIFRADAS
+  En la base de datos nunca se guarda la contraseña, sino su "hash" (password_hash):
+  un texto del que no se puede sacar la contraseña original. Para comprobarla
+  se usa password_verify(lo que ha escrito, hash guardado).
+*/
+
+/** Cifra una contraseña para guardarla en la base de datos. */
+function cifrar_contrasena(string $contrasena): string
+{
+    return password_hash($contrasena, PASSWORD_DEFAULT);
+}
+
+/**
+ * true si la contraseña escrita es la del usuario.
+ * Las cuentas antiguas pueden tener la contraseña sin cifrar: si coincide,
+ * se cifra en ese momento y a partir de ahí ya queda cifrada.
+ */
+function es_contrasena_correcta(int $id_usuario, string $escrita, string $guardada): bool
+{
+    if (password_verify($escrita, $guardada)) {
+        return true;
+    }
+    $sin_cifrar = !str_starts_with($guardada, '$2y$'); // los hash de password_hash empiezan por $2y$
+    if ($sin_cifrar && hash_equals($guardada, $escrita)) {
+        ejecutar("UPDATE usuarios SET contrasena = ? WHERE id = ?", [cifrar_contrasena($escrita), $id_usuario]);
+        return true;
+    }
+    return false;
+}
+
+/*
+  BLOQUEO TRAS VARIOS FALLOS
+  Si alguien falla la contraseña INTENTOS_MAXIMOS veces seguidas, la cuenta
+  no deja entrar durante MINUTOS_BLOQUEO minutos (frena a quien prueba contraseñas al azar).
+*/
+const INTENTOS_MAXIMOS = 5;
+const MINUTOS_BLOQUEO = 15;
+
+/** Apunta un fallo y, si ya van INTENTOS_MAXIMOS, bloquea la cuenta. */
+function anotar_intento_fallido(int $id_usuario): void
+{
+    ejecutar("UPDATE usuarios SET intentos_fallidos = intentos_fallidos + 1 WHERE id = ?", [$id_usuario]);
+    ejecutar("UPDATE usuarios SET bloqueado_hasta = NOW() + INTERVAL ? MINUTE, intentos_fallidos = 0
+              WHERE id = ? AND intentos_fallidos >= ?", [MINUTOS_BLOQUEO, $id_usuario, INTENTOS_MAXIMOS]);
 }
 
 /** Dirección de envío del cliente conectado (la de "Mi cuenta"), o '' si no tiene una válida. */
@@ -631,4 +685,260 @@ function obtener_lineas_pedido(int $id_pedido): array
 function mostrar_estado_pedido(string $estado): void
 {
     echo '<span class="badge badge-' . ESTADOS_PEDIDO[$estado] . ' px-2 py-1">' . ucfirst($estado) . '</span>';
+}
+
+
+/* ==========================================================================
+   9. FAVORITOS
+   Los productos que cada cliente marca con el corazón (tabla favoritos).
+   ========================================================================== */
+
+/** ids de los productos favoritos del cliente conectado ([] si no ha iniciado sesión). */
+function obtener_ids_favoritos(): array
+{
+    static $ids = null; // "static": se consulta una sola vez por página aunque haya muchas tarjetas
+    if ($ids === null) {
+        $ids = [];
+        if (tiene_sesion_iniciada()) {
+            $filas = consultar("SELECT producto_id FROM favoritos WHERE usuario_id = ?", [$_SESSION['usuario']['id']]);
+            $ids = array_column($filas, 'producto_id');
+        }
+    }
+    return $ids;
+}
+
+/** true si el producto está en los favoritos del cliente conectado. */
+function es_favorito(int $id_producto): bool
+{
+    return in_array($id_producto, obtener_ids_favoritos());
+}
+
+/**
+ * Botón del corazón para añadir o quitar un producto de favoritos.
+ * Lleno y en rojo si ya es favorito. $con_texto = true pone también el texto (ficha de producto).
+ */
+function mostrar_boton_favorito(array $producto, string $clase, bool $con_texto = false): void
+{
+    $favorito = es_favorito($producto['id']);
+    ?>
+    <form class="d-inline" action="index.php?p=favoritos" method="post">
+        <input type="hidden" name="id" value="<?= (int) $producto['id'] ?>">
+        <!-- Para volver a la misma página después de pulsar -->
+        <input type="hidden" name="volver" value="<?= escapar_html($_SERVER['QUERY_STRING'] ?? '') ?>">
+        <button type="submit" class="<?= $clase ?><?= $favorito ? ' favorito' : '' ?>" title="<?= $favorito ? 'Quitar de favoritos' : 'Añadir a favoritos' ?>">
+            <i class="<?= $favorito ? 'fas' : 'far' ?> fa-heart"></i><?= $con_texto ? ($favorito ? ' En favoritos' : ' Añadir a favoritos') : '' ?>
+        </button>
+    </form>
+    <?php
+}
+
+
+/* ==========================================================================
+   10. PUBLICIDAD
+   Cualquier cliente puede proponer un anuncio desde "Mi cuenta"; queda "pendiente"
+   hasta que un administrador lo aprueba o lo rechaza en el panel. El administrador
+   también puede crear anuncios, que se publican directamente.
+   En la tienda solo se ven los "aprobado" (inicio y barra lateral de la tienda).
+   ========================================================================== */
+
+// Estado del anuncio => color de Bootstrap para su etiqueta
+const ESTADOS_ANUNCIO = ['pendiente' => 'warning', 'aprobado' => 'success', 'rechazado' => 'danger'];
+
+/**
+ * Guarda el anuncio del formulario (campos titulo, texto, enlace e imagen).
+ * Lo usan "Mi cuenta" (estado 'pendiente') y el panel de administración ('aprobado').
+ * Devuelve '' si se ha guardado o el texto del error.
+ */
+function guardar_anuncio(int $usuario_id, string $estado): string
+{
+    $titulo = trim($_POST['titulo'] ?? '');
+    $texto = trim($_POST['texto'] ?? '');
+    $enlace = trim($_POST['enlace'] ?? '');
+
+    if ($titulo === '' || mb_strlen($titulo) > 80) {
+        return 'El título es obligatorio (máximo 80 caracteres).';
+    }
+    if ($texto === '' || mb_strlen($texto) > 300) {
+        return 'El texto es obligatorio (máximo 300 caracteres).';
+    }
+    // El enlace es opcional: una web (http:// o https://) o una página de la tienda (index.php?...)
+    $es_web = filter_var($enlace, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $enlace);
+    $es_de_la_tienda = preg_match('#^index\.php(\?[\w=&%.\-]*)?$#', $enlace);
+    if ($enlace !== '' && (!$es_web && !$es_de_la_tienda || mb_strlen($enlace) > 300)) {
+        return 'El enlace tiene que empezar por http:// o https:// (o ser una página de la tienda, index.php?...).';
+    }
+
+    // Imagen (opcional): JPG o PNG de hasta 2 MB, igual que las fotos de producto
+    $imagen = null;
+    $archivo = $_FILES['imagen'] ?? null;
+    if ($archivo && $archivo['error'] !== UPLOAD_ERR_NO_FILE) {
+        $tipos = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png'];
+        $info = $archivo['error'] === UPLOAD_ERR_OK ? @getimagesize($archivo['tmp_name']) : false;
+        if ($archivo['error'] !== UPLOAD_ERR_OK || $archivo['size'] > 2 * 1024 * 1024) {
+            return 'No se ha podido subir la imagen: tiene que ocupar 2 MB como mucho.';
+        }
+        if (!$info || !isset($tipos[$info[2]])) {
+            return 'La imagen tiene que ser JPG o PNG.';
+        }
+        // Nombre único (uniqid) para que dos anuncios no se pisen la imagen
+        if (!is_dir('img/anuncios')) {
+            mkdir('img/anuncios');
+        }
+        $imagen = 'img/anuncios/anuncio-' . uniqid() . '.' . $tipos[$info[2]];
+        move_uploaded_file($archivo['tmp_name'], $imagen);
+    }
+
+    ejecutar("INSERT INTO anuncios (usuario_id, titulo, texto, imagen, enlace, estado) VALUES (?, ?, ?, ?, ?, ?)",
+             [$usuario_id, $titulo, $texto, $imagen, $enlace !== '' ? $enlace : null, $estado]);
+    return '';
+}
+
+/** Borra un anuncio y su imagen (si se subió con el anuncio). */
+function borrar_anuncio(array $anuncio): void
+{
+    if ($anuncio['imagen'] && str_starts_with($anuncio['imagen'], 'img/anuncios/') && is_file($anuncio['imagen'])) {
+        unlink($anuncio['imagen']);
+    }
+    ejecutar("DELETE FROM anuncios WHERE id = ?", [$anuncio['id']]);
+}
+
+/** Anuncios aprobados, en orden aleatorio (así van rotando). */
+function obtener_anuncios_aprobados(int $limite): array
+{
+    return consultar("SELECT * FROM anuncios WHERE estado = 'aprobado' ORDER BY RAND() LIMIT " . $limite);
+}
+
+/** Pinta un anuncio como una tarjeta, con la etiqueta "Publicidad". */
+function mostrar_anuncio(array $anuncio): void
+{
+    // Los enlaces a otras webs se abren en una pestaña nueva
+    $externo = $anuncio['enlace'] && preg_match('#^https?://#i', $anuncio['enlace']);
+    ?>
+    <div class="bg-light h-100 d-flex flex-column position-relative">
+        <span class="badge badge-dark position-absolute" style="top: 10px; right: 10px; z-index: 1;">Publicidad</span>
+        <?php if ($anuncio['imagen']): ?>
+            <img class="w-100" src="<?= escapar_html($anuncio['imagen']) ?>" alt="" style="height: 160px; object-fit: cover;">
+        <?php else: ?>
+            <div class="bg-primary d-flex align-items-center justify-content-center" style="height: 160px;">
+                <i class="fa fa-bullhorn fa-3x text-dark"></i>
+            </div>
+        <?php endif; ?>
+        <div class="p-3 d-flex flex-column flex-grow-1">
+            <h6 class="mb-2"><?= escapar_html($anuncio['titulo']) ?></h6>
+            <p class="small mb-3"><?= escapar_html($anuncio['texto']) ?></p>
+            <?php if ($anuncio['enlace']): ?>
+                <a class="btn btn-sm btn-primary mt-auto align-self-start" href="<?= escapar_html($anuncio['enlace']) ?>"
+                   <?= $externo ? 'target="_blank" rel="noopener nofollow sponsored"' : '' ?>>Ver más</a>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+}
+
+/** Etiqueta de color con el estado del anuncio. */
+function mostrar_estado_anuncio(string $estado): void
+{
+    echo '<span class="badge badge-' . ESTADOS_ANUNCIO[$estado] . ' px-2 py-1">' . ucfirst($estado) . '</span>';
+}
+
+/**
+ * Formulario para crear un anuncio (Mi cuenta y panel de administración).
+ * $accion_campo / $accion_valor: el campo oculto que identifica el formulario en cada página.
+ */
+function mostrar_formulario_anuncio(string $destino, string $accion_campo, string $accion_valor, string $boton): void
+{
+    ?>
+    <!-- enctype multipart/form-data: obligatorio para poder subir la imagen -->
+    <form action="<?= $destino ?>" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="<?= $accion_campo ?>" value="<?= $accion_valor ?>">
+        <input type="hidden" name="token_csrf" value="<?= escapar_html(obtener_token_csrf()) ?>">
+        <div class="form-group">
+            <label for="titulo">Título</label>
+            <input type="text" id="titulo" name="titulo" class="form-control" maxlength="80" required value="<?= escapar_html($_POST['titulo'] ?? '') ?>">
+        </div>
+        <div class="form-group">
+            <label for="texto">Texto <small class="text-muted">(máximo 300 caracteres)</small></label>
+            <textarea id="texto" name="texto" class="form-control" rows="3" maxlength="300" required><?= escapar_html($_POST['texto'] ?? '') ?></textarea>
+        </div>
+        <div class="form-group">
+            <label for="enlace">Enlace <small class="text-muted">(opcional: https://... o index.php?...)</small></label>
+            <input type="text" id="enlace" name="enlace" class="form-control" maxlength="300" placeholder="https://www.ejemplo.com" value="<?= escapar_html($_POST['enlace'] ?? '') ?>">
+        </div>
+        <div class="form-group">
+            <label for="imagen">Imagen <small class="text-muted">(opcional: JPG o PNG, máximo 2 MB)</small></label>
+            <input type="file" id="imagen" name="imagen" class="form-control-file" accept="image/jpeg,image/png">
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fa fa-bullhorn mr-1"></i> <?= $boton ?></button>
+    </form>
+    <?php
+}
+
+
+/* ==========================================================================
+   11. CORREO
+   XAMPP no trae servidor de correo, así que mail() no funciona. En su lugar la tienda
+   se conecta a Gmail (SMTP) con la cuenta de config-correo.php y le pide que envíe el correo.
+   Una conversación SMTP es texto: el programa escribe una orden y el servidor contesta
+   con un número (2xx o 3xx = bien, 4xx o 5xx = error).
+   ========================================================================== */
+
+/** true si config-correo.php existe y está rellenado. */
+function correo_configurado(): bool
+{
+    return defined('CORREO_TIENDA') && CORREO_TIENDA !== '' && CORREO_CONTRASENA_APP !== '';
+}
+
+/**
+ * Envía un correo de texto desde la cuenta de la tienda.
+ * $responder_a: a quién se responde al pulsar "Responder" (opcional).
+ * Devuelve true si Gmail lo ha aceptado.
+ */
+function enviar_correo(string $para, string $asunto, string $texto, string $responder_a = ''): bool
+{
+    if (!correo_configurado()) {
+        return false;
+    }
+    // Conexión segura (SSL) con el servidor de Gmail; si en 10 segundos no contesta, se abandona
+    $servidor = @stream_socket_client('ssl://smtp.gmail.com:465', $num_error, $error, 10);
+    if (!$servidor) {
+        return false;
+    }
+
+    // Manda una orden y comprueba que la respuesta empieza por 2 o 3
+    $orden = function (?string $linea) use ($servidor): bool {
+        if ($linea !== null) {
+            fwrite($servidor, $linea . "\r\n");
+        }
+        // La respuesta puede tener varias líneas: "250-..." sigue, "250 ..." es la última
+        do {
+            $respuesta = fgets($servidor, 1024);
+        } while ($respuesta !== false && ($respuesta[3] ?? ' ') === '-');
+        return $respuesta !== false && in_array($respuesta[0], ['2', '3']);
+    };
+
+    // Cabeceras del correo. El asunto se codifica en base64 para que salgan bien las tildes.
+    $cabeceras = "From: Tio Pepe <" . CORREO_TIENDA . ">\r\n"
+               . "To: <$para>\r\n"
+               . ($responder_a !== '' ? "Reply-To: <$responder_a>\r\n" : '')
+               . "Subject: =?UTF-8?B?" . base64_encode($asunto) . "?=\r\n"
+               . "Date: " . date('r') . "\r\n"
+               . "MIME-Version: 1.0\r\n"
+               . "Content-Type: text/plain; charset=utf-8\r\n"
+               . "Content-Transfer-Encoding: 8bit\r\n";
+    // Una línea que sea solo "." termina el correo: por eso se dobla el punto al principio de línea
+    $cuerpo = preg_replace('/^\./m', '..', str_replace(["\r\n", "\r"], "\n", $texto));
+    $cuerpo = str_replace("\n", "\r\n", $cuerpo);
+
+    $enviado = $orden(null)                                        // saludo del servidor
+        && $orden('EHLO localhost')                                // "hola"
+        && $orden('AUTH LOGIN')                                    // iniciar sesión...
+        && $orden(base64_encode(CORREO_TIENDA))                    // ...usuario
+        && $orden(base64_encode(str_replace(' ', '', CORREO_CONTRASENA_APP))) // ...contraseña de aplicación
+        && $orden('MAIL FROM:<' . CORREO_TIENDA . '>')             // quién lo envía
+        && $orden("RCPT TO:<$para>")                               // a quién
+        && $orden('DATA')                                          // ahora va el correo
+        && $orden($cabeceras . "\r\n" . $cuerpo . "\r\n.");        // cabeceras + texto + "." final
+    $orden('QUIT');
+    fclose($servidor);
+    return $enviado;
 }

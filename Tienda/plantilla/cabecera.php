@@ -59,6 +59,10 @@
                 </div>
                 <div class="d-inline-flex align-items-center d-block d-lg-none">
                     <?php mostrar_boton_usuario('text-dark'); ?>
+                    <a href="index.php?p=favoritos" class="btn px-0 ml-3" title="Mis favoritos">
+                        <i class="fas fa-heart text-dark"></i>
+                        <span class="badge text-dark border border-dark rounded-circle" style="padding-bottom: 2px;"><?= count(obtener_ids_favoritos()) ?></span>
+                    </a>
                     <a href="index.php?p=carrito" class="btn px-0 ml-3" title="Carrito">
                         <i class="fas fa-shopping-cart text-dark"></i>
                         <span class="badge text-dark border border-dark rounded-circle" style="padding-bottom: 2px;"><?= contar_unidades_carrito() ?></span>
@@ -143,6 +147,10 @@
                         </div>
                         <div class="navbar-nav ml-auto py-0 d-none d-lg-block">
                             <?php mostrar_boton_usuario('text-primary'); ?>
+                            <a href="index.php?p=favoritos" class="btn px-0 ml-3" title="Mis favoritos">
+                                <i class="fas fa-heart text-primary"></i>
+                                <span class="badge text-secondary border border-secondary rounded-circle" style="padding-bottom: 2px;"><?= count(obtener_ids_favoritos()) ?></span>
+                            </a>
                             <a href="index.php?p=carrito" class="btn px-0 ml-3" title="Carrito">
                                 <i class="fas fa-shopping-cart text-primary"></i>
                                 <span class="badge text-secondary border border-secondary rounded-circle" style="padding-bottom: 2px;"><?= contar_unidades_carrito() ?></span>

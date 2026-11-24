@@ -20,6 +20,7 @@ $total_todos = count(obtener_productos());
 $total_rebajados = count(obtener_productos(rebajados: true));
 
 $nombre_seccion = $categoria_actual['nombre'] ?? ($solo_rebajados ? 'Rebajados' : 'Productos');
+$anuncio_lateral = obtener_anuncios_aprobados(1)[0] ?? null; // un anuncio al azar para la barra lateral
 
 mostrar_migas_de_pan([
     'Inicio' => 'index.php',
@@ -72,6 +73,12 @@ mostrar_migas_de_pan([
                         </div>
                     </form>
                 </div>
+
+                <?php if ($anuncio_lateral): ?>
+                    <div class="mb-30">
+                        <?php mostrar_anuncio($anuncio_lateral); ?>
+                    </div>
+                <?php endif; ?>
             </div>
             <!-- Shop Sidebar End -->
 

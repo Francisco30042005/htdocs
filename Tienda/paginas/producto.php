@@ -121,6 +121,9 @@ mostrar_migas_de_pan([
                         </div>
                         <button class="btn btn-primary px-3" type="submit"><i class="fa fa-shopping-cart mr-1"></i> Añadir al carrito</button>
                     </form>
+                    <div class="mb-4">
+                        <?php mostrar_boton_favorito($producto_detalle, 'btn btn-outline-dark px-3', true); ?>
+                    </div>
                 </div>
             </div>
         </div>

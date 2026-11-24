@@ -1,3 +1,9 @@
 # Clave secreta de Stripe: cada uno tiene la suya y NO se sube a GitHub.
 # Para crearla, copia config-stripe.ejemplo.php como config-stripe.php y pon tu clave.
 config-stripe.php
+
+# Cuenta de Gmail para enviar correos: igual, cada uno la suya (ver config-correo.ejemplo.php)
+config-correo.php
+
+# Carpeta que crea Claude con archivos de ayuda: nunca se sube a GitHub
+Claude outputs/

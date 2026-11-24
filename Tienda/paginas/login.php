@@ -10,17 +10,26 @@ if (tiene_sesion_iniciada()) {
 
 $error_login = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $usuario = consultar("SELECT id, usuario, contrasena, rol FROM usuarios WHERE usuario = ?", [trim($_POST['usuario'] ?? '')])[0] ?? null;
+    // "bloqueado" vale 1 si la cuenta sigue bloqueada por demasiados fallos
+    $usuario = consultar("SELECT id, usuario, contrasena, rol, bloqueado_hasta > NOW() AS bloqueado
+                          FROM usuarios WHERE usuario = ?", [trim($_POST['usuario'] ?? '')])[0] ?? null;
+    $escrita = $_POST['contrasena'] ?? '';
 
-    // La contraseña se guarda tal cual en la base de datos (sin cifrar)
-    if ($usuario && $usuario['contrasena'] === ($_POST['contrasena'] ?? '')) {
-        unset($usuario['contrasena']); // la contraseña no se guarda en la sesión
-        session_regenerate_id(true);   // nuevo id de sesión al entrar (evita robos de sesión)
-        $_SESSION['usuario'] = $usuario;
+    if ($usuario && $usuario['bloqueado']) {
+        $error_login = 'Demasiados intentos fallidos. Por seguridad, la cuenta está bloqueada ' . MINUTOS_BLOQUEO . ' minutos.';
+    } elseif ($usuario && es_contrasena_correcta($usuario['id'], $escrita, $usuario['contrasena'])) {
+        ejecutar("UPDATE usuarios SET intentos_fallidos = 0 WHERE id = ?", [$usuario['id']]); // empieza de cero
+        $_SESSION['usuario'] = ['id' => $usuario['id'], 'usuario' => $usuario['usuario'], 'rol' => $usuario['rol']];
+        session_regenerate_id(true); // nuevo id de sesión al entrar (evita robos de sesión)
         header('Location: ' . obtener_destino_tras_entrar());
         exit;
+    } else {
+        if ($usuario) {
+            anotar_intento_fallido($usuario['id']);
+        }
+        // Mismo mensaje exista o no el usuario: así no se puede averiguar qué usuarios hay
+        $error_login = 'Usuario o contraseña incorrectos.';
     }
-    $error_login = 'Usuario o contraseña incorrectos.';
 }
 
 mostrar_migas_de_pan([
@@ -44,6 +53,10 @@ mostrar_migas_de_pan([
                             <p class="text-muted mb-0">Inicia sesión para continuar en Tio Pepe</p>
                         </div>
 
+                        <?php if (!empty($_SESSION['aviso_login'])): ?>
+                            <div class="alert alert-info"><i class="fa fa-info-circle mr-1"></i> <?= escapar_html($_SESSION['aviso_login']) ?></div>
+                            <?php unset($_SESSION['aviso_login']); ?>
+                        <?php endif; ?>
                         <?php if (!empty($_SESSION['volver_al_carrito'])): ?>
                             <div class="alert alert-info"><i class="fa fa-shopping-cart mr-1"></i> Inicia sesión para finalizar tu compra. Tu carrito está guardado y volverás a él al entrar.</div>
                         <?php endif; ?>

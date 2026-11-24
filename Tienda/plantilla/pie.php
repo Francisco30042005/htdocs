@@ -25,6 +25,14 @@
                             <a class="text-secondary" href="index.php?p=conocenos"><i class="fa fa-angle-right mr-2"></i>Conócenos</a>
                         </div>
                     </div>
+                    <div class="col-md-6 mb-5">
+                        <h5 class="text-secondary text-uppercase mb-4">Información legal</h5>
+                        <div class="d-flex flex-column justify-content-start">
+                            <a class="text-secondary mb-2" href="index.php?p=privacidad"><i class="fa fa-angle-right mr-2"></i>Política de privacidad</a>
+                            <a class="text-secondary mb-2" href="index.php?p=cookies"><i class="fa fa-angle-right mr-2"></i>Política de cookies</a>
+                            <a class="text-secondary" href="index.php?p=terminos"><i class="fa fa-angle-right mr-2"></i>Términos y condiciones</a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -44,6 +52,22 @@
     <!-- Footer End -->
 
 
+    <?php if (!isset($_COOKIE['aviso_cookies'])): ?>
+    <!-- Aviso de cookies: sale hasta que se pulsa "Entendido" (se recuerda un año con la cookie aviso_cookies) -->
+    <div id="aviso-cookies" class="bg-dark text-light p-3 shadow" style="position: fixed; left: 0; right: 0; bottom: 0; z-index: 1050;">
+        <div class="container d-flex flex-column flex-md-row align-items-center justify-content-between">
+            <p class="mb-2 mb-md-0 mr-md-3 small">
+                <i class="fa fa-cookie-bite text-primary mr-1"></i>
+                Tio Pepe solo usa cookies necesarias para que la tienda funcione (sesión, carrito, tema e idioma). No usamos cookies de publicidad ni de seguimiento.
+                <a href="index.php?p=cookies" class="text-primary">Más información</a>
+            </p>
+            <button type="button" class="btn btn-primary btn-sm px-4"
+                    onclick="document.cookie = 'aviso_cookies=1; max-age=31536000; path=/; SameSite=Lax';
+                             document.getElementById('aviso-cookies').remove();">Entendido</button>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Back to Top -->
     <a href="#" class="btn btn-primary back-to-top"><i class="fa fa-angle-double-up"></i></a>
 
@@ -55,7 +79,7 @@
     <script src="lib/owlcarousel/owl.carousel.min.js"></script>
 
     <!-- Template Javascript -->
-    <script src="js/main.js"></script>
+    <script src="js/main.js?v=<?= filemtime('js/main.js') ?>"></script>
 
     <!-- Autocompletado del buscador: lista de productos para js/buscador.js -->
     <?php

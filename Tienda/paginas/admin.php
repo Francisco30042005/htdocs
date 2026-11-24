@@ -6,6 +6,7 @@
     cupones     crear cupones de descuento y activarlos o desactivarlos
     categorias  crear, renombrar y borrar categorías
     pedidos     ver los pedidos de los clientes y cambiar su estado
+    publicidad  aprobar o rechazar los anuncios de los clientes y crear anuncios propios
 
   Primero se procesan los formularios (todos llevan el token de seguridad y, al
   terminar, recargan la página) y después se pinta la pestaña elegida.
@@ -16,7 +17,7 @@ if (!es_admin()) {
 }
 
 $seccion = $_GET['seccion'] ?? 'productos';
-if (!in_array($seccion, ['productos', 'cupones', 'categorias', 'pedidos'])) {
+if (!in_array($seccion, ['productos', 'cupones', 'categorias', 'pedidos', 'publicidad'])) {
     $seccion = 'productos';
 }
 $accion = $_POST['accion_admin'] ?? '';
@@ -209,6 +210,44 @@ if ($accion === 'cambiar_estado') {
 
 
 /* ==========================================================================
+   FORMULARIOS: PUBLICIDAD
+   ========================================================================== */
+
+// Crear un anuncio de la tienda: se publica directamente (estado "aprobado")
+$error_anuncio = '';
+if ($accion === 'crear_anuncio') {
+    $error_anuncio = guardar_anuncio($_SESSION['usuario']['id'], 'aprobado');
+    if ($error_anuncio === '') {
+        $_SESSION['mensaje_admin'] = 'Anuncio creado y publicado.';
+        header('Location: index.php?p=admin&seccion=publicidad');
+        exit;
+    }
+}
+
+// Aprobar o rechazar un anuncio
+if ($accion === 'estado_anuncio') {
+    $estado = $_POST['estado'] ?? '';
+    if (isset(ESTADOS_ANUNCIO[$estado])) {
+        ejecutar("UPDATE anuncios SET estado = ? WHERE id = ?", [$estado, (int) ($_POST['id'] ?? 0)]);
+        $_SESSION['mensaje_admin'] = 'Anuncio marcado como «' . $estado . '».';
+    }
+    header('Location: index.php?p=admin&seccion=publicidad');
+    exit;
+}
+
+// Borrar un anuncio (y su imagen)
+if ($accion === 'borrar_anuncio') {
+    $anuncio = consultar("SELECT * FROM anuncios WHERE id = ?", [(int) ($_POST['id'] ?? 0)])[0] ?? null;
+    if ($anuncio) {
+        borrar_anuncio($anuncio);
+        $_SESSION['mensaje_admin'] = 'Anuncio «' . $anuncio['titulo'] . '» borrado.';
+    }
+    header('Location: index.php?p=admin&seccion=publicidad');
+    exit;
+}
+
+
+/* ==========================================================================
    DATOS PARA PINTAR LA PESTAÑA ELEGIDA
    ========================================================================== */
 
@@ -248,7 +287,16 @@ if ($seccion === 'pedidos') {
     $pedidos = consultar("SELECT pe.*, u.usuario FROM pedidos pe JOIN usuarios u ON u.id = pe.usuario_id ORDER BY pe.fecha DESC");
 }
 
-$pestanas = ['productos' => 'Productos', 'cupones' => 'Cupones', 'categorias' => 'Categorías', 'pedidos' => 'Pedidos'];
+if ($seccion === 'publicidad') {
+    // Primero los pendientes de revisar, después del más nuevo al más antiguo
+    $anuncios = consultar("SELECT a.*, u.usuario, u.rol FROM anuncios a JOIN usuarios u ON u.id = a.usuario_id
+                           ORDER BY a.estado = 'pendiente' DESC, a.fecha DESC");
+}
+
+// En la pestaña Publicidad se ve cuántos anuncios faltan por revisar
+$pendientes = consultar("SELECT COUNT(*) AS total FROM anuncios WHERE estado = 'pendiente'")[0]['total'];
+$pestanas = ['productos' => 'Productos', 'cupones' => 'Cupones', 'categorias' => 'Categorías', 'pedidos' => 'Pedidos',
+             'publicidad' => 'Publicidad' . ($pendientes ? " ($pendientes)" : '')];
 
 mostrar_migas_de_pan([
     'Inicio' => 'index.php',
@@ -489,7 +537,7 @@ mostrar_migas_de_pan([
                     </table>
                 </div>
 
-            <?php else: /* pedidos */ ?>
+            <?php elseif ($seccion === 'pedidos'): ?>
                 <!-- Lista de pedidos -->
                 <h4 class="mb-3">Pedidos (<?= count($pedidos) ?>)</h4>
                 <?php if (!$pedidos): ?>
@@ -530,6 +578,73 @@ mostrar_migas_de_pan([
                                             <?php endforeach; ?>
                                         </select>
                                         <button type="submit" class="btn btn-sm btn-outline-dark">Guardar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+
+            <?php elseif ($seccion === 'publicidad'): ?>
+                <!-- Crear un anuncio de la tienda -->
+                <h4 class="mb-3">Nuevo anuncio <small class="text-muted">(se publica directamente)</small></h4>
+                <?php if ($error_anuncio): ?>
+                    <div class="alert alert-danger"><?= escapar_html($error_anuncio) ?></div>
+                <?php endif; ?>
+                <div class="bg-light p-30 mb-5">
+                    <?php mostrar_formulario_anuncio('index.php?p=admin&amp;seccion=publicidad', 'accion_admin', 'crear_anuncio', 'Publicar anuncio'); ?>
+                </div>
+
+                <!-- Todos los anuncios -->
+                <h4 class="mb-3">Anuncios</h4>
+                <?php if (!$anuncios): ?>
+                    <p>Todavía no hay anuncios.</p>
+                <?php else: ?>
+                <div class="table-responsive mb-5">
+                    <table class="table table-light table-borderless table-hover mb-0">
+                        <thead class="thead-dark">
+                            <tr><th>Imagen</th><th>Anuncio</th><th>Autor</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($anuncios as $anuncio): ?>
+                            <tr>
+                                <td class="align-middle">
+                                    <?php if ($anuncio['imagen']): ?>
+                                        <img src="<?= escapar_html($anuncio['imagen']) ?>" alt="" style="width: 70px; height: 50px; object-fit: cover;">
+                                    <?php else: ?>
+                                        <i class="fa fa-bullhorn fa-2x text-muted"></i>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="align-middle">
+                                    <b><?= escapar_html($anuncio['titulo']) ?></b><br>
+                                    <small><?= escapar_html($anuncio['texto']) ?></small>
+                                    <?php if ($anuncio['enlace']): ?>
+                                        <br><small class="text-muted"><i class="fa fa-link mr-1"></i><?= escapar_html($anuncio['enlace']) ?></small>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="align-middle"><?= escapar_html($anuncio['usuario']) ?><?= $anuncio['rol'] === 'admin' ? ' <small class="text-muted">(tienda)</small>' : '' ?></td>
+                                <td class="align-middle text-nowrap"><?= date('d/m/Y', strtotime($anuncio['fecha'])) ?></td>
+                                <td class="align-middle"><?php mostrar_estado_anuncio($anuncio['estado']); ?></td>
+                                <td class="align-middle text-nowrap">
+                                    <!-- Aprobar / Rechazar: solo se ofrece el cambio que tiene sentido -->
+                                    <?php foreach (['aprobado' => ['Aprobar', 'btn-success'], 'rechazado' => ['Rechazar', 'btn-outline-warning']] as $estado => [$texto_boton, $clase]): ?>
+                                        <?php if ($anuncio['estado'] !== $estado): ?>
+                                            <form action="index.php?p=admin&amp;seccion=publicidad" method="post" class="d-inline">
+                                                <input type="hidden" name="accion_admin" value="estado_anuncio">
+                                                <input type="hidden" name="token_csrf" value="<?= escapar_html($token) ?>">
+                                                <input type="hidden" name="id" value="<?= $anuncio['id'] ?>">
+                                                <input type="hidden" name="estado" value="<?= $estado ?>">
+                                                <button type="submit" class="btn btn-sm <?= $clase ?>"><?= $texto_boton ?></button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                    <form action="index.php?p=admin&amp;seccion=publicidad" method="post" class="d-inline" onsubmit="return confirm('¿Borrar este anuncio?');">
+                                        <input type="hidden" name="accion_admin" value="borrar_anuncio">
+                                        <input type="hidden" name="token_csrf" value="<?= escapar_html($token) ?>">
+                                        <input type="hidden" name="id" value="<?= $anuncio['id'] ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Borrar"><i class="fa fa-trash"></i></button>
                                     </form>
                                 </td>
                             </tr>

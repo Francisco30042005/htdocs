@@ -1,6 +1,7 @@
 <?php
 /*
-  MI CUENTA (index.php?p=mi-cuenta): datos personales, cambiar la contraseña, mis pedidos y cerrar sesión.
+  MI CUENTA (index.php?p=mi-cuenta): datos personales, cambiar la contraseña, mis pedidos,
+  mis anuncios (publicidad) y cerrar sesión.
   Solo con la sesión iniciada.
 */
 if (!tiene_sesion_iniciada()) {
@@ -45,17 +46,51 @@ if ($accion === 'datos') {
 if ($accion === 'contrasena') {
     $actual = consultar("SELECT contrasena FROM usuarios WHERE id = ?", [$id_usuario])[0]['contrasena'];
     $nueva = $_POST['nueva'] ?? '';
-    if (($_POST['actual'] ?? '') !== $actual) {
+    if (!es_contrasena_correcta($id_usuario, $_POST['actual'] ?? '', $actual)) {
         $mensaje_cuenta = 'La contraseña actual no es correcta.';
     } elseif (comprobar_contrasena($nueva) !== '') {
         $mensaje_cuenta = 'No se ha cambiado la contraseña. ' . comprobar_contrasena($nueva);
     } elseif ($nueva !== ($_POST['repetir'] ?? '')) {
         $mensaje_cuenta = 'Las contraseñas nuevas no coinciden.';
     } else {
-        ejecutar("UPDATE usuarios SET contrasena = ? WHERE id = ?", [$nueva, $id_usuario]);
+        ejecutar("UPDATE usuarios SET contrasena = ? WHERE id = ?", [cifrar_contrasena($nueva), $id_usuario]);
         $mensaje_cuenta = 'Contraseña cambiada.';
     }
 }
+
+// Proponer un anuncio: queda "pendiente" hasta que lo revise un administrador
+$error_anuncio = '';
+if ($accion === 'anuncio' && tiene_token_csrf_valido()) {
+    $error_anuncio = guardar_anuncio($id_usuario, 'pendiente');
+    if ($error_anuncio === '') {
+        $_SESSION['mensaje_cuenta'] = 'Anuncio enviado. Lo revisaremos y, si se aprueba, aparecerá en la tienda.';
+        header('Location: index.php?p=mi-cuenta#mis-anuncios');
+        exit;
+    }
+}
+
+// Borrar uno de mis anuncios (el "AND usuario_id" impide borrar los de otros)
+if ($accion === 'borrar_anuncio' && tiene_token_csrf_valido()) {
+    $anuncio = consultar("SELECT * FROM anuncios WHERE id = ? AND usuario_id = ?", [(int) ($_POST['id'] ?? 0), $id_usuario])[0] ?? null;
+    if ($anuncio) {
+        borrar_anuncio($anuncio);
+        $_SESSION['mensaje_cuenta'] = 'Anuncio borrado.';
+    }
+    header('Location: index.php?p=mi-cuenta#mis-anuncios');
+    exit;
+}
+
+// Aviso que llega tras recargar la página (anuncio enviado o borrado)
+if (isset($_SESSION['mensaje_cuenta'])) {
+    $mensaje_cuenta = $_SESSION['mensaje_cuenta'];
+    unset($_SESSION['mensaje_cuenta']);
+}
+if ($error_anuncio !== '') {
+    $mensaje_cuenta = 'No se ha enviado el anuncio. ' . $error_anuncio;
+}
+
+// Los avisos de error empiezan por "No ..." o "La/Las ..." (se pintan en rojo; los demás en azul)
+$mensaje_es_error = preg_match('/^(No|La|Las) /', $mensaje_cuenta) === 1;
 
 $yo = consultar("SELECT usuario, nombre, direccion, telefono FROM usuarios WHERE id = ?", [$id_usuario])[0];
 if ($error_direccion) {
@@ -65,6 +100,7 @@ if ($error_direccion) {
     $yo['telefono'] = trim($_POST['telefono'] ?? '');
 }
 $mis_pedidos = consultar("SELECT * FROM pedidos WHERE usuario_id = ? ORDER BY fecha DESC", [$id_usuario]);
+$mis_anuncios = consultar("SELECT * FROM anuncios WHERE usuario_id = ? ORDER BY fecha DESC", [$id_usuario]);
 
 mostrar_migas_de_pan([
     'Inicio' => 'index.php',
@@ -100,7 +136,7 @@ mostrar_migas_de_pan([
         <div class="row px-xl-5">
             <div class="col-12">
                 <?php if ($mensaje_cuenta): ?>
-                    <div class="alert alert-<?= in_array($mensaje_cuenta, ['Datos guardados.', 'Contraseña cambiada.']) ? 'info' : 'danger' ?>"><?= escapar_html($mensaje_cuenta) ?></div>
+                    <div class="alert alert-<?= $mensaje_es_error ? 'danger' : 'info' ?>"><?= escapar_html($mensaje_cuenta) ?></div>
                 <?php endif; ?>
                 <?php if (!empty($_SESSION['volver_al_carrito'])): ?>
                     <div class="alert alert-warning">
@@ -200,6 +236,51 @@ mostrar_migas_de_pan([
                             </table>
                         </div>
                     <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Mis anuncios (publicidad) -->
+            <div class="col-12 mb-5" id="mis-anuncios">
+                <div class="bg-light p-30">
+                    <h5 class="mb-1">Mis anuncios</h5>
+                    <p class="text-muted small">Anuncia lo que quieras en Tio Pepe. Revisamos cada anuncio antes de publicarlo
+                        (ver <a href="index.php?p=terminos" class="text-primary">términos y condiciones</a>).</p>
+                    <div class="row">
+                        <div class="col-lg-5 mb-4">
+                            <?php mostrar_formulario_anuncio('index.php?p=mi-cuenta#mis-anuncios', 'accion_cuenta', 'anuncio', 'Enviar anuncio'); ?>
+                        </div>
+                        <div class="col-lg-7">
+                            <?php if (!$mis_anuncios): ?>
+                                <p class="mb-0">Todavía no has propuesto ningún anuncio.</p>
+                            <?php else: ?>
+                                <div class="table-responsive">
+                                    <table class="table table-light table-borderless table-hover mb-0">
+                                        <thead class="thead-dark">
+                                            <tr><th>Anuncio</th><th>Fecha</th><th>Estado</th><th></th></tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($mis_anuncios as $anuncio): ?>
+                                            <tr>
+                                                <td class="align-middle"><b><?= escapar_html($anuncio['titulo']) ?></b><br>
+                                                    <small class="text-muted"><?= escapar_html($anuncio['texto']) ?></small></td>
+                                                <td class="align-middle text-nowrap"><?= date('d/m/Y', strtotime($anuncio['fecha'])) ?></td>
+                                                <td class="align-middle"><?php mostrar_estado_anuncio($anuncio['estado']); ?></td>
+                                                <td class="align-middle">
+                                                    <form action="index.php?p=mi-cuenta" method="post" onsubmit="return confirm('¿Borrar este anuncio?');">
+                                                        <input type="hidden" name="accion_cuenta" value="borrar_anuncio">
+                                                        <input type="hidden" name="token_csrf" value="<?= escapar_html(obtener_token_csrf()) ?>">
+                                                        <input type="hidden" name="id" value="<?= $anuncio['id'] ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Borrar"><i class="fa fa-trash"></i></button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

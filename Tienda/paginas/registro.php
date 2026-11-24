@@ -22,10 +22,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($contrasena !== ($_POST['repetir_contrasena'] ?? '')) {
         $errores_registro[] = 'Las dos contraseñas no coinciden.';
     }
+    if (empty($_POST['acepto'])) {
+        $errores_registro[] = 'Tienes que aceptar la política de privacidad y los términos y condiciones.';
+    }
 
     if (!$errores_registro) {
         // Falla si el nombre de usuario ya existe (la columna "usuario" es UNIQUE)
-        if (ejecutar("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?, ?, 'cliente')", [$usuario, $contrasena])) {
+        // La contraseña se guarda cifrada (ver cifrar_contrasena en funciones.php)
+        if (ejecutar("INSERT INTO usuarios (usuario, contrasena, rol) VALUES (?, ?, 'cliente')", [$usuario, cifrar_contrasena($contrasena)])) {
             session_regenerate_id(true);
             $id_nuevo = consultar("SELECT LAST_INSERT_ID() AS id")[0]['id']; // id del usuario recién creado
             $_SESSION['usuario'] = ['id' => $id_nuevo, 'usuario' => $usuario, 'rol' => 'cliente'];
@@ -77,6 +81,13 @@ mostrar_migas_de_pan([
                         <div class="form-group">
                             <label for="repetir_contrasena">Repite la contraseña</label>
                             <input type="password" class="form-control" id="repetir_contrasena" name="repetir_contrasena" required minlength="9" autocomplete="new-password">
+                        </div>
+                        <div class="custom-control custom-checkbox mb-3">
+                            <input type="checkbox" class="custom-control-input" id="acepto" name="acepto" value="1" required <?= !empty($_POST['acepto']) ? 'checked' : '' ?>>
+                            <label class="custom-control-label small" for="acepto">
+                                He leído y acepto la <a href="index.php?p=privacidad" target="_blank" class="text-primary">política de privacidad</a>
+                                y los <a href="index.php?p=terminos" target="_blank" class="text-primary">términos y condiciones</a>.
+                            </label>
                         </div>
                         <button class="btn btn-primary py-2 px-4" type="submit">
                             <i class="fa fa-user-plus mr-1"></i> Crear cuenta
